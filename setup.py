@@ -24,6 +24,10 @@ setup(
     author='Eddy Ernesto del Valle Pino',
     author_email='eddy.delvalle@gmail.com',
     packages=find_packages(exclude=("tests",)),
+    install_requires=[
+        'serpy>=0.1.1,<0.2',
+        'xoutil>=1.7.1,<1.8',
+    ],
     include_package_data=True,
     zip_safe=True,
 )
