@@ -50,6 +50,15 @@ def tokenize(string):
             raise TokenizerError(value, line_num, column)
         else:
             tokens.append(Token(kind, value, line_num, column))
+
+    # add first {
+    tokens.insert(0, Token('BRACKET_OPEN', '{', 1, 0))
+
+    # add last }
+    last_token = tokens[-1]
+    tokens.append(Token(
+        'BRACKET_CLOSE', '}', last_token.line, last_token.column + 1
+    ))
     return tuple(tokens)
 
 

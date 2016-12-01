@@ -87,17 +87,15 @@ def execute(query):
 
 
 def test_empty_query():
-    assert execute('{}') == {}
+    assert execute('') == {}
 
 
 def test_simple_query():
     data = execute("""
-    {
         tasks {
             id
             vehicle_type
         }
-    }
     """)
     assert data == {
         'tasks': [
@@ -109,14 +107,12 @@ def test_simple_query():
 
 def test_subquery():
     data = execute("""
-    {
         tasks {
             id
             steps {
                 name
             }
         }
-    }
     """)
     assert data == {
         'tasks': [
@@ -128,14 +124,12 @@ def test_subquery():
 
 def test_with_parameters_in_subquery():
     data = execute("""
-    {
         tasks {
             id
             steps (name__startswith: "A") {
                 name
             }
         }
-    }
     """)
     assert data == {
         'tasks': [
