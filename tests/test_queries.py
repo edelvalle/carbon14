@@ -128,8 +128,6 @@ def test_with_parameters_in_subquery():
             }
         }
     """)
-    from pprint import pprint
-    pprint(data)
     assert data == {
         'authors': [
             {'id': 32, 'books': [{'title': 'El becheló'}]},
