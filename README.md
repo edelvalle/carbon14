@@ -1,10 +1,10 @@
 # Carbon 14
 
-This is an extension that gives GraphQL capabilities to Serpy.
+This is a library that gives Serpy GraphQL capabilities.
 
-This project contains it's own GraphQL parser and specialization of the Serpy serializer (`Node`) that understand GraphQL queries. 
+This project contains it's own GraphQL parser and specialization of the Serpy serializer (`Node`) that understands GraphQL queries. 
 
-Disclaimer: As Serpy is not intended to be used for data validation and mutations this library does not provide that ether, use just to optimize your read queries and use normal REST API endpoints to implement mutations.
+Disclaimer: As Serpy is not intended to be used for data validation and mutations this library does not provide that either, use just to optimize your read queries and use normal REST API endpoints to implement mutations.
 
 ## Example
 
@@ -12,7 +12,7 @@ Take a look to the tests in the file `tests/test_queries.py`
 
 ## Django integration
 
-To integrate with Django you will require also Django REST Framework.
+To integrate with Django you will require Django REST Framework.
 
 Put this in your `urls.py` file
 
@@ -32,6 +32,7 @@ urlpatters = [
 
 Don't worry about the RootNode, it is created automatically the only thing you need to do is decorate the nodes you want to expose in the RootNode like this:
 
+```
 @expose('authors', instance=Author.objects.all(), many=True)
 class AuthorNode(Node):
     id = serpy.IntField()
@@ -61,6 +62,7 @@ class AuthorNode(Node):
             instance = instance.prefecth_related('steps')
 
         return instance, children, context
+```
 
 ## Testing
 
