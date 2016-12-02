@@ -9,12 +9,17 @@ class MetaNode(SerializerMeta):
 
     @staticmethod
     def _get_fields(*args, **kwargs):
+        """Extension of `SerializerMeta._get_fields`.
+
+        The parameter `pass_query` is added to detect if the getter requires
+        the query parameters.
+        """
         field_map, cmp_fields = SerializerMeta._get_fields(*args, **kwargs)
         fields = []
         for name, getter, to_value, call, required, pass_self in cmp_fields:
             try:
                 pass_query = 'parameters' in inspect.getargspec(to_value).args
-            except TypeError:
+            except TypeError:  # the callable can't be inspected
                 pass_query = False
 
             fields.append(
@@ -32,11 +37,26 @@ class Node(serpy.Serializer, metaclass=MetaNode):
         self._children = children
         self._context = context
 
-    def to_value(self, instance, parameters=None, children=None, context=None):
-        # set query
+    def to_value(
+            self, instance=..., parameters=None, children=None, context=None):
+        """Re-implementation of `Serializer.to_value`.
+
+        Compute the specific data for the object resolution and call
+        `resolve` to do customization of the `instance` and `children` of the
+        query based on `parameters` and `context`.
+        """
+
+        # get the context
+        if instance is ...:
+            instance = self.instance
+
         parameters = parameters or self._parameters or {}
         children = children or self._children or {}
         context = context or self._context
+
+        instance, children, context = self.resolve(
+            instance, parameters, children, context
+        )
 
         # filter fields
         fields = [f for f in self._compiled_fields if f[0] in children]
@@ -50,10 +70,20 @@ class Node(serpy.Serializer, metaclass=MetaNode):
             ]
         return self._serialize(instance, fields, children, context)
 
+    def resolve(self, instance, parameters, children, context):
+        return instance, children, context
+
     def _serialize(self, instance, fields, children, context):
+        """Re-implementation of `Serializer._serialize`.
+
+        Serialize `instance` passing the required context to each field
+        serializer.
+
+        *This method look like hell because is optimized for speed.
+        """
         v = {}
         for name, getter, to_value, call, required, pass_self, pass_q in fields:
-            if pass_self:
+            if pass_self:  # is a method of the local class
                 result = getter(
                     self, instance, context=context, **children[name]
                 )
