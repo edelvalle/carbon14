@@ -1,6 +1,3 @@
-import pytz
-from datetime import datetime
-
 import serpy
 from carbon14 import graphql
 from carbon14.node import Node
@@ -8,75 +5,69 @@ from carbon14.node import Node
 
 # Models
 
-BERLIN_TZ = pytz.timezone('Europe/Berlin')
+
+class Book:
+    def __init__(self, title):
+        self.title = title
 
 
-class Step:
-    def __init__(self, name):
-        self.name = name
-
-
-class Task:
-    def __init__(self, id, vehicle_type, notes, start_time, steps):
+class Author:
+    def __init__(self, id, name, is_alive, books):
         self.id = id
-        self.vehicle_type = vehicle_type
-        self.notes = notes
-        self.start_time = start_time
-        self.steps = steps
+        self.name = name
+        self.is_alive = is_alive
+        self.books = books
 
 
-TASKS = [
-    Task(
-        32, 'van', 'notes ', BERLIN_TZ.localize(datetime(2016, 8, 2, 10, 0)),
-        steps=[Step('AB'), Step('BC')]
+AUTHORS = [
+    Author(
+        id=32,
+        name='Grace',
+        is_alive=True,
+        books=[Book(title='El becheló'), Book(title='Dog and Cat')]
     ),
-    Task(
-        22, 'bus', None, BERLIN_TZ.localize(datetime(2016, 8, 23, 10, 2)),
-        steps=[Step('XY'), Step('YZ')]
+    Author(
+        id=22,
+        name='John',
+        is_alive=False,
+        books=[Book(title='El bocaza'), Book(title='Dungeon')]
     ),
 ]
 
 
 # Nodes
 
-class StepNode(Node):
+class BookNode(Node):
 
-    name = serpy.StrField()
+    title = serpy.StrField()
+
+    def resolve(self, instance, parameters, children, context):
+        title_contains = parameters.get('title_contains') or ''
+        if self.many:
+            # filtering
+            instance = [
+                i for i in instance if title_contains in i.title
+            ]
+        else:
+            if title_contains not in instance.title:
+                instance = None
+        return instance, children, context
 
 
-class TaskNode(Node):
-    """The serializer schema definition."""
+class AuthorNode(Node):
+
     # Use a Field subclass like IntField if you need more validation.
     id = serpy.IntField()
-    vehicle_type = serpy.StrField()
-    notes = serpy.StrField(required=False)
-    start_time = serpy.StrField()
-    steps = serpy.MethodField()
-
-    def get_steps(self, instance, parameters, children, context):
-        prefix = parameters.get('name__startswith')
-        if prefix:
-            steps = [s for s in instance.steps if s.name.startswith(prefix)]
-        else:
-            steps = instance.steps
-        return StepNode(
-            instance=steps, many=True,
-            parameters=parameters, children=children,
-            context=context
-        ).data
+    name = serpy.StrField()
+    is_alive = serpy.BoolField()
+    books = BookNode(many=True)
 
 
 class RootNode(Node):
-    tasks = serpy.MethodField()
+    authors = serpy.MethodField()
 
-    def get_tasks(self, instance, parameters, children, context):
-        parameters.setdefault('start_time', datetime.now().date())
-        return TaskNode(
-            TASKS,
-            parameters=parameters,
-            children=children,
-            many=True
-        ).data
+    def get_authors(self, instance, *args, **kwargs):
+        return AuthorNode(instance=AUTHORS, many=True, *args, **kwargs).data
 
 
 def execute(query):
@@ -92,48 +83,56 @@ def test_empty_query():
 
 def test_simple_query():
     data = execute("""
-        tasks {
+        authors {
             id
-            vehicle_type
+            name
         }
     """)
     assert data == {
-        'tasks': [
-            {'id': 32, 'vehicle_type': 'van'},
-            {'id': 22, 'vehicle_type': 'bus'},
+        'authors': [
+            {'id': 32, 'name': 'Grace'},
+            {'id': 22, 'name': 'John'},
         ]
     }
 
 
 def test_subquery():
     data = execute("""
-        tasks {
+        authors {
             id
-            steps {
-                name
+            books {
+                title
             }
         }
     """)
     assert data == {
-        'tasks': [
-            {'id': 32, 'steps': [{'name': 'AB'}, {'name': 'BC'}]},
-            {'id': 22, 'steps': [{'name': 'XY'}, {'name': 'YZ'}]},
+        'authors': [
+            {'id': 32, 'books': [
+                {'title': 'El becheló'},
+                {'title': 'Dog and Cat'}
+            ]},
+            {'id': 22, 'books': [
+                {'title': 'El bocaza'},
+                {'title': 'Dungeon'}
+            ]},
         ]
     }
 
 
 def test_with_parameters_in_subquery():
     data = execute("""
-        tasks {
+        authors {
             id
-            steps (name__startswith: "A") {
-                name
+            books (title_contains: "El") {
+                title
             }
         }
     """)
+    from pprint import pprint
+    pprint(data)
     assert data == {
-        'tasks': [
-            {'id': 32, 'steps': [{'name': 'AB'}]},
-            {'id': 22, 'steps': []},
+        'authors': [
+            {'id': 32, 'books': [{'title': 'El becheló'}]},
+            {'id': 22, 'books': [{'title': 'El bocaza'}]},
         ]
     }
