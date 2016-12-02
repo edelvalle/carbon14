@@ -18,13 +18,15 @@ TOKENS = (
     ('BRACKET_CLOSE', r'}'),
     ('PARENTHESIS_OPEN', r'\('),
     ('PARENTHESIS_CLOSE', r'\)'),
+    ('SQUARE_BRACKET_OPEN', r'\['),
+    ('SQUARE_BRACKET_CLOSE', r'\]'),
     ('NULL', r'null'),
     ('BOOL', r'(true|false)'),
     ('NAME', r'[a-zA-Z_]\w*'),
     ('COLON', r':'),
     ('COMMA', r','),
     ('NUMBER', r'-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?'),
-    ('STRING', r'".*"'),
+    ('STRING', r'\"([^\\\"]|\\.)*\"'),
     ('NEW_LINE', r'\n'),
     ('WHITE_SPACE', r'\s+'),
     ('MISMATCH', r'.'),
@@ -104,7 +106,7 @@ class Parser:
         """ CHILDREN := { ENTRY* } """
         token = self.consume('BRACKET_OPEN', null=True)
         if token:
-            while not self.current.kind == 'BRACKET_CLOSE':
+            while self.current.kind != 'BRACKET_CLOSE':
                 ast = self.parse_entry(ast)
             self.consume('BRACKET_CLOSE')
         return ast
@@ -124,7 +126,7 @@ class Parser:
         """
         token = self.consume('PARENTHESIS_OPEN', null=True)
         if token:
-            while not self.current.kind == 'PARENTHESIS_CLOSE':
+            while self.current.kind != 'PARENTHESIS_CLOSE':
                 ast = self.parse_parameter(ast)
                 comma = self.consume('COMMA', null=True)
                 if not comma:
@@ -136,13 +138,44 @@ class Parser:
         """ PARAMETER := NAME : VALUE """
         name = self.consume('NAME')
         self.consume('COLON')
-        value = self.consume_value()
-        ast[name.value] = json.loads(value.value)
+        ast[name.value] = self.consume_value()
         return ast
 
     def consume_value(self):
-        """ VALUE = STRING | NUMBER | BOOL | NULL """
-        return self.consume(['STRING', 'NUMBER', 'BOOL', 'NULL'])
+        """ VALUE = STRING | NUMBER | BOOL | NULL | LIST """
+        if self.current.kind == 'SQUARE_BRACKET_OPEN':
+            return self.consume_list()
+        elif self.current.kind == 'BRACKET_OPEN':
+            return self.consume_dict()
+        else:
+            token = self.consume(['STRING', 'NUMBER', 'BOOL', 'NULL'])
+        return json.loads(token.value)
+
+    def consume_list(self):
+        """ LIST = [ [VALUE[,]]* ] """
+        the_list = []
+        self.consume('SQUARE_BRACKET_OPEN')
+        while self.current.kind != 'SQUARE_BRACKET_CLOSE':
+            the_list.append(self.consume_value())
+            comma = self.consume('COMMA', null=True)
+            if not comma:
+                break
+        self.consume('SQUARE_BRACKET_CLOSE')
+        return the_list
+
+    def consume_dict(self):
+        """ DICT = { [NAME: VALUE[,]]* } """
+        the_dict = {}
+        self.consume('BRACKET_OPEN')
+        while self.current.kind != 'BRACKET_CLOSE':
+            name = self.consume('NAME')
+            self.consume('COLON')
+            the_dict[name.value] = self.consume_value()
+            comma = self.consume('COMMA', null=True)
+            if not comma:
+                break
+        self.consume('BRACKET_CLOSE')
+        return the_dict
 
 
 @lru_cache()

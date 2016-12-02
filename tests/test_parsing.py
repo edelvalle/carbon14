@@ -26,7 +26,7 @@ def test_tokenizer_with_correct_query():
         Token(kind='COMMA', value=',', line=4, column=29),
         Token(kind='NAME', value='a', line=4, column=31),
         Token(kind='COLON', value=':', line=4, column=32),
-        Token(kind='STRING', value='"asd\\"s"', line=4, column=34),
+        Token(kind='STRING', value='"asd\\\"s"', line=4, column=34),
         Token(kind='COMMA', value=',', line=4, column=42),
         Token(kind='NAME', value='alex', line=4, column=44),
         Token(kind='COLON', value=':', line=4, column=48),
@@ -119,3 +119,36 @@ def test_parser_with_lexic_error():
         assert str(e) == 'Unexpected "{" expecting NAME at 2:16'
     else:
         assert False, "No LexicalError found :'("
+
+
+def test_parser_with_dict_as_parameter_value():
+    query = """coco (param1: {a: "X", x: [1, 2]} ) """
+    result = graphql.parse(query)
+    assert result == {
+        'coco': {
+            'parameters': {
+                'param1': {
+                    'a': 'X',
+                    'x': [1, 2],
+                }
+            },
+            'children': {}
+        }
+    }
+
+
+def test_parser_with_list_as_parameter_value():
+    query = r"""coco (param1: ["a", "X", {x: [1, 2]}] ) """
+    result = graphql.parse(query)
+    assert result == {
+        'coco': {
+            'parameters': {
+                'param1': [
+                    'a',
+                    'X',
+                    {'x': [1, 2]}
+                ]
+            },
+            'children': {}
+        }
+    }
