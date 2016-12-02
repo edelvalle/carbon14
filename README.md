@@ -8,7 +8,7 @@ Disclaimer: As Serpy is not intended to be used for data validation and mutation
 
 ## Example
 
-Take a look to the tests in the file `tests/test_queries.py`
+Take a look to the tests in the file [`tests/test_queries.py`](tests/test_queries.py)
 
 ## Django integration
 
@@ -16,7 +16,7 @@ To integrate with Django you will require Django REST Framework.
 
 Put this in your `urls.py` file
 
-```
+```python
 ...
 
 from carbon14.django import GraphQLView
@@ -32,7 +32,7 @@ urlpatters = [
 
 Don't worry about the RootNode, it is created automatically the only thing you need to do is decorate the nodes you want to expose in the RootNode like this:
 
-```
+```python
 @expose('authors', instance=Author.objects.all(), many=True)
 class AuthorNode(Node):
     id = serpy.IntField()
@@ -68,8 +68,9 @@ class AuthorNode(Node):
 
 Install the package in development mode:
 
-`$ python setup.py develop`
+
+    $ python setup.py develop
 
 Install `py.test` and run:
 
-`$ py.test`
+    $ py.test
