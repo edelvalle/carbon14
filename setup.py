@@ -22,7 +22,7 @@ setup(
     ],
     keywords='',
     author='Eddy Ernesto del Valle Pino',
-    author_email='eddy.delvalle@gmail.com',
+    author_email='eddy@edelvalle.me',
     packages=find_packages(exclude=("tests",)),
     install_requires=[
         'serpy>=0.1.1,<0.2',
