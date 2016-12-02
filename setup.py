@@ -16,8 +16,12 @@ setup(
     long_description=read('README.md'),
     classifiers=[
         'Topic :: Internet :: WWW/HTTP :: Dynamic Content',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.3',
+        'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
-        'Development Status :: 5 - Production/Stable',
+        'Programming Language :: Python :: Implementation :: PyPy',
+        'Development Status :: 3 - Alpha',
         'Operating System :: OS Independent',
     ],
     keywords='',
@@ -27,6 +31,9 @@ setup(
     install_requires=[
         'serpy>=0.1.1,<0.2',
         'xoutil>=1.7.1,<1.8',
+    ],
+    tests_require=[
+        'pytest>=3.0.4',
     ],
     include_package_data=True,
     zip_safe=True,
