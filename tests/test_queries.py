@@ -56,7 +56,6 @@ class BookNode(Node):
 
 class AuthorNode(Node):
 
-    # Use a Field subclass like IntField if you need more validation.
     id = serpy.IntField()
     name = serpy.StrField()
     is_alive = serpy.BoolField()
