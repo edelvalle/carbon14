@@ -50,7 +50,7 @@ class AuthorNode(Node):
             instance = [] if self.many else None
 
         # filtering
-        id = parameters.get('id', None)
+        id = parameters.get('id')
         if id:
             if self.many:
                 instance = instance.filter(id=id)
