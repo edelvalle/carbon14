@@ -41,16 +41,15 @@ class BookNode(Node):
 
     title = serpy.StrField()
 
-    def resolve(self, instance, parameters, children, context):
+    def resolve_many(self, instances, parameters, children, context):
         title_contains = parameters.get('title_contains') or ''
-        if self.many:
-            # filtering
-            instance = [
-                i for i in instance if title_contains in i.title
-            ]
-        else:
-            if title_contains not in instance.title:
-                instance = None
+        instances = [i for i in instances if title_contains in i.title]
+        return instances, children, context
+
+    def resolve_one(self, instance, parameters, children, context):
+        title_contains = parameters.get('title_contains') or ''
+        if title_contains not in instance.title:
+            instance = None
         return instance, children, context
 
 
@@ -127,6 +126,8 @@ def test_with_parameters_in_subquery():
             }
         }
     """)
+    from pprint import pprint
+    pprint(data)
     assert data == {
         'authors': [
             {'id': 32, 'books': [{'title': 'El becheló'}]},

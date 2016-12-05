@@ -54,9 +54,12 @@ class Node(serpy.Serializer, metaclass=MetaNode):
         children = children or self._children or {}
         context = context or self._context
 
-        instance, children, context = self.resolve(
-            instance, parameters, children, context
-        )
+        resolve = self.resolve_many if self.many else self.resolve_one
+        instance, children, context = resolve(
+            instance, parameters, children, context)
+
+        instance, children, context = self.resolve_always(
+            instance, parameters, children, context)
 
         # filter fields
         fields = [f for f in self._compiled_fields if f[0] in children]
@@ -70,7 +73,13 @@ class Node(serpy.Serializer, metaclass=MetaNode):
             ]
         return self._serialize(instance, fields, children, context)
 
-    def resolve(self, instance, parameters, children, context):
+    def resolve_one(self, instance, parameters, children, context):
+        return instance, children, context
+
+    def resolve_many(self, instances, parameters, children, context):
+        return instances, children, context
+
+    def resolve_always(self, instance, parameters, children, context):
         return instance, children, context
 
     def _serialize(self, instance, fields, children, context):
