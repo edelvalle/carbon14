@@ -1,14 +1,15 @@
-import serpy
 from carbon14 import graphql
-from carbon14.node import Node
+from carbon14.neonode import Collection, RootNode, Field, field
 
 
 # Models
 
 
 class Book:
-    def __init__(self, title):
+    def __init__(self, id, title, author):
+        self.id = id
         self.title = title
+        self.author = author
 
 
 class Author:
@@ -19,57 +20,67 @@ class Author:
         self.books = books
 
 
+BOOKS = [
+    Book(id=1, title='El becheló', author=32),
+    Book(id=2, title='Dog and Cat', author=32),
+    Book(id=3, title='El bocaza', author=22),
+    Book(id=4, title='Dungeon', author=22),
+]
+
+
 AUTHORS = [
     Author(
         id=32,
         name='Grace',
         is_alive=True,
-        books=[Book(title='El becheló'), Book(title='Dog and Cat')]
+        books=[1, 2]
     ),
     Author(
         id=22,
         name='John',
         is_alive=False,
-        books=[Book(title='El bocaza'), Book(title='Dungeon')]
+        books=[3, 4]
     ),
 ]
 
 
 # Nodes
 
-class BookNode(Node):
+class Books(Collection):
 
-    title = serpy.StrField()
+    id = Field()
+    title = Field()
+    author = Field(ref='authors')
 
-    def resolve_many(self, instances, parameters, children, context):
-        title_contains = parameters.get('title_contains') or ''
-        instances = [i for i in instances if title_contains in i.title]
-        return instances, children, context
-
-    def resolve_one(self, instance, parameters, children, context):
-        title_contains = parameters.get('title_contains') or ''
-        if title_contains not in instance.title:
-            instance = None
-        return instance, children, context
+    def resolve(self, children, title_contains='', **kwargs):
+        return BOOKS, children
 
 
-class AuthorNode(Node):
+class Authors(Collection):
 
-    id = serpy.IntField()
-    name = serpy.StrField()
-    is_alive = serpy.BoolField()
-    books = BookNode(many=True)
+    id = Field()
+    name = Field()
+    is_alive = Field()
+
+    def resolve(self, children, *args, **kwargs):
+        return AUTHORS, children
+
+    @field
+    def books(instance, title_contains=None, *args, **kwargs):
+        return [
+            book.id
+            for book in BOOKS
+            if title_contains in book.title and book.id in instance.books
+        ]
 
 
-class RootNode(Node):
-    authors = serpy.MethodField()
-
-    def get_authors(self, instance, *args, **kwargs):
-        return AuthorNode(instance=AUTHORS, many=True, *args, **kwargs).data
+class RootNode(RootNode):
+    authors = Authors()
+    books = Books()
 
 
 def execute(query):
-    return RootNode(children=graphql.parse(query)).data
+    return RootNode().serialize(children=graphql.parse(query))
 
 
 # Tests
@@ -86,6 +97,8 @@ def test_simple_query():
             name
         }
     """)
+    from pprint import pprint
+    pprint(data)
     assert data == {
         'authors': [
             {'id': 32, 'name': 'Grace'},
@@ -102,7 +115,13 @@ def test_subquery():
                 title
             }
         }
+        books {
+            id
+            title
+        }
     """)
+    from pprint import pprint
+    pprint(data)
     assert data == {
         'authors': [
             {'id': 32, 'books': [
@@ -121,11 +140,15 @@ def test_with_parameters_in_subquery():
     data = execute("""
         authors {
             id
-            books (title_contains: "El") {
-                title
-            }
+            books (title_contains: "El")
+        }
+        books {
+            id
+            title
         }
     """)
+    from pprint import pprint
+    pprint(data)
     assert data == {
         'authors': [
             {'id': 32, 'books': [{'title': 'El becheló'}]},
