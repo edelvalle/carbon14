@@ -9,28 +9,18 @@ from rest_framework.parsers import BaseParser
 from rest_framework.renderers import JSONRenderer
 from rest_framework.exceptions import ParseError
 
-from serpy import StrField
-
 from .graphql import parse
 from .errors import Carbon14Error
-from .node import Node
+from .neonode import RootNode, Collection, Field
 
 
-class RootNode(Node):
-
-    def to_value(self, *args, **kwargs):
-        response = {}
-        for child, query in self._children.items():
-            response[child] = getattr(self, child).to_value(
-                context=self._context, **query
-            )
-        return response
+collections = {}
 
 
 @decorator
-def expose(node: Node, name, *args, **kwargs) -> Node:
-    setattr(RootNode, name, node(*args, **kwargs))
-    return node
+def expose(collection: Collection, name) -> Collection:
+    collections[name] = collection
+    return collection
 
 
 class GraphQLParser(BaseParser):
@@ -55,8 +45,15 @@ class GraphQLView(APIView):
     )
 
     def post(self, request):
-        return Response(RootNode(children=request.data, context=request).data)
+        root_node = RootNode(**collections)
+        data = root_node.serialize(children=request.data, ctx=request)
+        return Response(data)
 
 
-class DateTime(StrField):
+class DateTime(Field):
     to_value = staticmethod(timezone.localtime)
+
+    def serialize(self, instance, children, **kwargs):
+        value = super().serialize(instance, children, **kwargs)
+        value = value and timezone.localtime(value)
+        return value

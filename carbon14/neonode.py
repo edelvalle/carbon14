@@ -1,18 +1,62 @@
 
 from collections import defaultdict
+from xoutil.context import context
+from xoutil.decorator.meta import decorator
+
+
+def merge_dicts(dest, source):
+    """
+    source: {'children': {}, 'parameters': {'ids': [1, 2, 3, 1]}}
+    dest: {'children': {'a': {'x': 1}}, 'parameters': {'ids': [1, 1, 4, 1]}}
+
+    output: {'children': {'a': {'x': 1}}, 'parameters': {'ids': [1, 2, 3, 4]}}
+    """
+    for k, v in source.items():
+        if k not in dest:
+            dest[k] = v
+        else:
+            if isinstance(v, list):
+                dest[k] = list(set(dest[k]).union(set(v)))
+            elif isinstance(v, dict):
+                merge_dicts(dest[k], source[k])
+    return dest
+
+
+class All:
+    def __contains__(self, *args, **kwargs):
+        return True
+
+
+All = All()
 
 
 class Field:
 
-    def __init__(self, ref=None, attr=None, call=False):
+    def __init__(self, ref=None, attr=None, call=False, many=True):
         self.attr = attr
         self.call = call
         self.ref = ref
+        self.many = many
 
-    def to_value(self, instance, children, parameters, ctx=None):
-        return self.serialize(instance, children, ctx)
+    def to_value(self, instance, children, **kwargs):
+        value = self.serialize(instance, children, **kwargs)
 
-    def serialize(self, instance, children, ctx):
+        # ask for new items
+        if self.ref:
+            query = context['carbon14'].children[self.ref]
+            merge_dicts(query['children'], children)
+
+            if not self.many:
+                value = [value]
+
+            collection = context['carbon14'].collections[self.ref]
+            value = [x['id'] for x in collection._to_value(ids=value, **kwargs)]
+
+            query['parameters']['ids'].extend(value)
+
+        return value
+
+    def serialize(self, instance, children, **kwargs):
         value = getattr(instance, self.attr, None)
         if value and self.call:
             value = value()
@@ -23,16 +67,10 @@ class MethodField(Field):
 
     def __init__(self, method=None, **kwargs):
         super().__init__(**kwargs)
-        self.method = method
-
-    def to_value(self, instance, children, parameters, ctx=None):
-        return self.method(
-            instance,
-            ctx=ctx,
-            **parameters
-        )
+        self.serialize = method
 
 
+@decorator
 def field(fn, *args, **kwargs):
     return MethodField(method=fn, *args, **kwargs)
 
@@ -52,81 +90,85 @@ class Node(type):
         return real_class
 
 
-class Collection(Field, metaclass=Node):
+class Collection(metaclass=Node):
 
-    def to_value(self, children, parameters, ctx=None):
-        parameters = parameters or {}
-        instances, children = self.resolve(children, ctx=ctx, **parameters)
-        return self.serialize(instances, children, ctx)
+    _source = ()
 
-    def resolve(self, children, ctx, **kwargs):
-        return [], children
+    id = Field()
 
-    @classmethod
-    def references(cls):
-        return {
-            field_name: field.ref
-            for field_name, field in cls._fields.items()
-        }
+    def _to_value(self, instances=..., children=None, **kwargs):
+        instances = self._source if instances is ... else instances
+        children = children or {}
+        children.setdefault('id', {'parameters': {}, 'children': {}})
 
-    def serialize(self, instances, children, ctx):
-        data = [
+        instances = self._resolve(instances, **kwargs)
+        children = self._filter_children(children, instances, **kwargs)
+
+        return self._serialize(instances, children, ctx=kwargs.get('ctx'))
+
+    def _resolve(self, instances, children, **kwargs):
+        return instances
+
+    def _filter_children(self, children, instances, **kwargs):
+        return children
+
+    def _serialize(self, instances, children, ctx):
+        return [
             {
-                child: self._fields[child].to_value(i, ctx=ctx, **query)
+                child: self._fields[child].to_value(
+                    instance,
+                    children=query['children'],
+                    **dict(query['parameters'], ctx=ctx)
+                )
                 for child, query in children.items()
             }
-            for i in instances
+            for instance in instances
         ]
 
-        new_query = defaultdict(
-            lambda: {'children': {}, 'parameters': {'ids': []}}
-        )
 
-        for field_name, collection in self.references():
-            for item in data:
-                field_value = item[field_name]
-                if field_value is not None:
-                    if not isinstance(field_value, (list, tuple)):
-                        field_value = (field_value,)
-                    collection_query = new_query[collection]
-                    collection_query['children'].update(children[field_name])
-                    collection_query['parameters']['ids'].extend(field_value)
+class RootNode:
+    def __init__(self, **collections):
+        self.collections = collections
 
-        return {item['id']: item for item in data}, new_query
+    def serialize(self, children, ctx=None):
+        results = defaultdict(list)
+        solved_ids = defaultdict(set)
 
+        more_objects_required = True
 
-class RootNode(metaclass=Node):
+        while more_objects_required:
+            future_children = defaultdict(
+                lambda: {'children': {}, 'parameters': {'ids': [], 'ctx': ctx}}
+            )
 
-    def serialize(self, children, ctx=None, result=None):
-        result = result or defaultdict(dict)
+            with context(
+                    'carbon14',
+                    children=future_children,
+                    collections=self.collections):
+                results = self._serialize(results, solved_ids, children, ctx)
 
-        new_children = defaultdict(
-            lambda: {'children': {}, 'parameters': {'ids': []}}
-        )
+            more_objects_required = False
 
+            for collection, ids in solved_ids.items():
+                parameters = future_children[collection]['parameters']
+                parameters['ids'] = list(set(parameters['ids']).difference(ids))
+
+            for query in future_children.values():
+                if query['parameters']['ids']:
+                    more_objects_required = True
+                    children = future_children
+
+        return results
+
+    def _serialize(self, results, solved_ids, children, ctx):
         for child, query in children.items():
-            field = self._fields[child]
-            field_value, new_query = field.to_value(**query, ctx=ctx)
-            result[child].update(field_value)
-            for collection, query in new_query.items():
-                query[''] result[collection]:
-                    item['id']
-                collection_query = new_children[collection]
+            collection = self.collections[child]
+            collection_results = collection._to_value(
+                children=query['children'],
+                **dict(query['parameters'], ctx=ctx),
+            )
+            results[child].extend(collection_results)
 
-                new_children[collection]['children'].update(query['children'])
-                new_children[collection]['parameters'].update(query['parameters']['ids'])
-
-
-
-        query = {
-            collection: {
-                'children': children[collection]['children'],
-                'parameters': {'ids': ids},
-            }
-            for collection, ids in to_serialize.items()
-        }
-
-        if to_serialize:
-            result = self.serialize(query, ctx, result=result)
-
-        return result
+            collection_ids = {i['id'] for i in collection_results}
+            solved_ids[child] = solved_ids[child].union(collection_ids)
+        return results

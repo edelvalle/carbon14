@@ -1,5 +1,5 @@
 from carbon14 import graphql
-from carbon14.neonode import Collection, RootNode, Field, field
+from carbon14.neonode import Collection, RootNode, Field, field, All
 
 
 # Models
@@ -52,8 +52,14 @@ class Books(Collection):
     title = Field()
     author = Field(ref='authors')
 
-    def resolve(self, children, title_contains='', **kwargs):
-        return BOOKS, children
+    _source = BOOKS
+
+    def _resolve(self, instances, ids=All, title_contains='', **kwargs):
+        instances = [
+            i for i in instances
+            if title_contains in i.title and i.id in ids
+        ]
+        return instances
 
 
 class Authors(Collection):
@@ -61,26 +67,24 @@ class Authors(Collection):
     id = Field()
     name = Field()
     is_alive = Field()
+    books = Field(ref='books', many=True)
 
-    def resolve(self, children, *args, **kwargs):
-        return AUTHORS, children
+    _source = AUTHORS
 
-    @field
-    def books(instance, title_contains=None, *args, **kwargs):
-        return [
-            book.id
-            for book in BOOKS
-            if title_contains in book.title and book.id in instance.books
+    def _resolve(self, instances, ids=All, **kwargs):
+        instances = [
+            i for i in instances if i.id in ids
         ]
-
-
-class RootNode(RootNode):
-    authors = Authors()
-    books = Books()
+        return instances
 
 
 def execute(query):
-    return RootNode().serialize(children=graphql.parse(query))
+    return RootNode(
+        books=Books(),
+        authors=Authors()
+    ).serialize(
+        children=graphql.parse(query)
+    )
 
 
 # Tests
@@ -112,12 +116,9 @@ def test_subquery():
         authors {
             id
             books {
+                id
                 title
             }
-        }
-        books {
-            id
-            title
         }
     """)
     from pprint import pprint
@@ -140,11 +141,10 @@ def test_with_parameters_in_subquery():
     data = execute("""
         authors {
             id
-            books (title_contains: "El")
-        }
-        books {
-            id
-            title
+            books (title_contains: "El") {
+                id
+                title
+            }
         }
     """)
     from pprint import pprint
