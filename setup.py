@@ -7,12 +7,12 @@ def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
 
-VERSION = '0.2.0'
+VERSION = '0.3.0'
 
 setup(
     name='carbon14',
     version=VERSION,
-    description="GraphQL extension for Serpy",
+    description="Serializer library with GraphQL query support.",
     long_description=read('README.md'),
     classifiers=[
         'Topic :: Internet :: WWW/HTTP :: Dynamic Content',
@@ -29,7 +29,6 @@ setup(
     author_email='eddy@edelvalle.me',
     packages=find_packages(exclude=("tests",)),
     install_requires=[
-        'serpy>=0.1.1,<0.2',
         'xoutil>=1.7.1,<1.8',
     ],
     tests_require=[
