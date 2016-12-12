@@ -32,7 +32,7 @@ All = All()
 
 class Field:
 
-    def __init__(self, ref=None, attr=None, call=False, many=True):
+    def __init__(self, ref=None, attr=None, call=False, many=False):
         self.attr = attr
         self.call = call
         self.ref = ref
@@ -49,10 +49,8 @@ class Field:
             if not self.many:
                 value = [value]
 
-            collection = context['carbon14'].collections[self.ref]
-            value = [x['id'] for x in collection._to_value(ids=value, **kwargs)]
-
-            query['parameters']['ids'].extend(value)
+            value = set(x for x in value if x is not None)
+            query['parameters']['ids'] = query['parameters']['ids'].union(value)
 
         return value
 
@@ -106,7 +104,7 @@ class Collection(metaclass=Node):
 
         return self._serialize(instances, children, ctx=kwargs.get('ctx'))
 
-    def _resolve(self, instances, children, **kwargs):
+    def _resolve(self, instances, **kwargs):
         return instances
 
     def _filter_children(self, children, instances, **kwargs):
@@ -121,6 +119,7 @@ class Collection(metaclass=Node):
                     **dict(query['parameters'], ctx=ctx)
                 )
                 for child, query in children.items()
+                if child in self._fields
             }
             for instance in instances
         ]
@@ -131,27 +130,26 @@ class RootNode:
         self.collections = collections
 
     def serialize(self, children, ctx=None):
-        results = defaultdict(list)
-        solved_ids = defaultdict(set)
-
+        results = defaultdict(lambda: defaultdict(dict))
         more_objects_required = True
 
         while more_objects_required:
             future_children = defaultdict(
-                lambda: {'children': {}, 'parameters': {'ids': [], 'ctx': ctx}}
+                lambda: {
+                    'children': {},
+                    'parameters': {'ids': set(), 'ctx': ctx},
+                }
             )
 
-            with context(
-                    'carbon14',
-                    children=future_children,
-                    collections=self.collections):
-                results = self._serialize(results, solved_ids, children, ctx)
+            with context('carbon14', children=future_children):
+                results = self._serialize(results, children, ctx)
 
             more_objects_required = False
 
-            for collection, ids in solved_ids.items():
+            for collection, objs in results.items():
+                ids = set(objs)
                 parameters = future_children[collection]['parameters']
-                parameters['ids'] = list(set(parameters['ids']).difference(ids))
+                parameters['ids'] = parameters['ids'].difference(ids)
 
             for query in future_children.values():
                 if query['parameters']['ids']:
@@ -160,15 +158,13 @@ class RootNode:
 
         return results
 
-    def _serialize(self, results, solved_ids, children, ctx):
+    def _serialize(self, results, children, ctx):
         for child, query in children.items():
             collection = self.collections[child]
             collection_results = collection._to_value(
                 children=query['children'],
                 **dict(query['parameters'], ctx=ctx),
             )
-            results[child].extend(collection_results)
-
-            collection_ids = {i['id'] for i in collection_results}
-            solved_ids[child] = solved_ids[child].union(collection_ids)
+            for r in collection_results:
+                results[child][r['id']].update(r)
         return results

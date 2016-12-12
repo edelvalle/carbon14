@@ -19,7 +19,7 @@ collections = {}
 
 @decorator
 def expose(collection: Collection, name) -> Collection:
-    collections[name] = collection
+    collections[name] = collection()
     return collection
 
 
@@ -51,7 +51,6 @@ class GraphQLView(APIView):
 
 
 class DateTime(Field):
-    to_value = staticmethod(timezone.localtime)
 
     def serialize(self, instance, children, **kwargs):
         value = super().serialize(instance, children, **kwargs)
