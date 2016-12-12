@@ -1,5 +1,5 @@
 from carbon14 import graphql
-from carbon14.neonode import Collection, RootNode, Field, field, All
+from carbon14.neonode import Collection, RootNode, Field, All, field
 
 
 # Models
@@ -54,12 +54,8 @@ class Books(Collection):
 
     _source = BOOKS
 
-    def _resolve(self, instances, ids=All, title_contains='', **kwargs):
-        instances = [
-            i for i in instances
-            if title_contains in i.title and i.id in ids
-        ]
-        return instances
+    def _resolve(self, instances, ids=All, **kwargs):
+        return [i for i in instances if i.id in ids]
 
 
 class Authors(Collection):
@@ -70,6 +66,15 @@ class Authors(Collection):
     books = Field(ref='books', many=True)
 
     _source = AUTHORS
+
+    @field(ref='books', many=True)
+    def books(instance, children, title_contains='', *args, **kwargs):
+        ids = []
+        for book_id in instance.books:
+            for book in BOOKS:
+                if book.id == book_id and title_contains in book.title:
+                    ids.append(book_id)
+        return ids
 
     def _resolve(self, instances, ids=All, **kwargs):
         instances = [
@@ -104,10 +109,10 @@ def test_simple_query():
     from pprint import pprint
     pprint(data)
     assert data == {
-        'authors': [
-            {'id': 32, 'name': 'Grace'},
-            {'id': 22, 'name': 'John'},
-        ]
+        'authors': {
+            22: {'id': 22, 'name': 'John'},
+            32: {'id': 32, 'name': 'Grace'},
+        },
     }
 
 
@@ -121,19 +126,17 @@ def test_subquery():
             }
         }
     """)
-    from pprint import pprint
-    pprint(data)
     assert data == {
-        'authors': [
-            {'id': 32, 'books': [
-                {'title': 'El becheló'},
-                {'title': 'Dog and Cat'}
-            ]},
-            {'id': 22, 'books': [
-                {'title': 'El bocaza'},
-                {'title': 'Dungeon'}
-            ]},
-        ]
+        'authors': {
+            22: {'books': {3, 4}, 'id': 22},
+            32: {'books': {1, 2}, 'id': 32},
+        },
+        'books': {
+            1: {'id': 1, 'title': 'El becheló'},
+            2: {'id': 2, 'title': 'Dog and Cat'},
+            3: {'id': 3, 'title': 'El bocaza'},
+            4: {'id': 4, 'title': 'Dungeon'},
+        },
     }
 
 
@@ -148,10 +151,13 @@ def test_with_parameters_in_subquery():
         }
     """)
     from pprint import pprint
-    pprint(data)
     assert data == {
-        'authors': [
-            {'id': 32, 'books': [{'title': 'El becheló'}]},
-            {'id': 22, 'books': [{'title': 'El bocaza'}]},
-        ]
+        'authors': {
+            22: {'books': {3}, 'id': 22},
+            32: {'books': {1}, 'id': 32},
+        },
+        'books': {
+            1: {'id': 1, 'title': 'El becheló'},
+            3: {'id': 3, 'title': 'El bocaza'},
+        },
     }
