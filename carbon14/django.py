@@ -40,7 +40,7 @@ class GraphQLParser(BaseParser):
 
 class ModelCollection(Collection):
 
-    _auth_required = False
+    _auth_required = True
 
     def _resolve(self, instances, ctx, ids=None, **kwargs):
         if self._auth_required and not ctx.user.is_authenticated():
