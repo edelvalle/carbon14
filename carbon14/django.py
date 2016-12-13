@@ -38,6 +38,19 @@ class GraphQLParser(BaseParser):
             raise ParseError(str(e))
 
 
+class ModelCollection(Collection):
+
+    _auth_required = False
+
+    def _resolve(self, instances, ctx, ids=None, **kwargs):
+        if self._auth_required and not ctx.user.is_authenticated():
+            instances = instances.none()
+        else:
+            if ids is not None:
+                instances = instances.filter(id__in=ids)
+        return instances
+
+
 class GraphQLView(APIView):
 
     parser_classes = (
