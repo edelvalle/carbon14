@@ -160,11 +160,12 @@ class RootNode:
 
     def _serialize(self, results, children, ctx):
         for child, query in children.items():
-            collection = self.collections[child]
-            collection_results = collection._to_value(
-                children=query['children'],
-                **dict(query['parameters'], ctx=ctx),
-            )
-            for r in collection_results:
-                results[child][r['id']].update(r)
+            collection = self.collections.get(child)
+            if collection:
+                collection_results = collection._to_value(
+                    children=query['children'],
+                    **dict(query['parameters'], ctx=ctx),
+                )
+                for r in collection_results:
+                    results[child][r['id']].update(r)
         return results
