@@ -94,17 +94,17 @@ class Collection(metaclass=Node):
 
     id = Field()
 
-    def _to_value(self, instances=..., children=None, **kwargs):
+    def _to_value(self, level, instances=..., children=None, **kwargs):
         instances = self._source if instances is ... else instances
         children = children or {}
         children.setdefault('id', {'parameters': {}, 'children': {}})
 
-        instances = self._resolve(instances, **kwargs)
+        instances = self._resolve(level, instances, **kwargs)
         children = self._filter_children(children, instances, **kwargs)
 
         return self._serialize(instances, children, ctx=kwargs.get('ctx'))
 
-    def _resolve(self, instances, **kwargs):
+    def _resolve(self, level, instances, **kwargs):
         return instances
 
     def _filter_children(self, children, instances, **kwargs):
@@ -133,6 +133,8 @@ class RootNode:
         results = defaultdict(lambda: defaultdict(dict))
         more_objects_required = True
 
+        level = 0
+
         while more_objects_required:
             future_children = defaultdict(
                 lambda: {
@@ -142,7 +144,7 @@ class RootNode:
             )
 
             with context('carbon14', children=future_children):
-                results = self._serialize(results, children, ctx)
+                results = self._serialize(level, results, children, ctx)
 
             more_objects_required = False
 
@@ -156,13 +158,16 @@ class RootNode:
                     more_objects_required = True
                     children = future_children
 
+            level += 1
+
         return results
 
-    def _serialize(self, results, children, ctx):
+    def _serialize(self, level, results, children, ctx):
         for child, query in children.items():
             collection = self.collections.get(child)
             if collection:
                 collection_results = collection._to_value(
+                    level=level,
                     children=query['children'],
                     **dict(query['parameters'], ctx=ctx),
                 )
