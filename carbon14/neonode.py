@@ -167,7 +167,7 @@ class RootNode:
                 collection_results = collection._to_value(
                     level=level,
                     children=query['children'],
-                    **dict(query['parameters'], ctx=ctx),
+                    **dict(query['parameters'], ctx=ctx)
                 )
                 for r in collection_results:
                     results[child][r['id']].update(r)
