@@ -46,11 +46,9 @@ class Field:
             query = context['carbon14'].children[self.ref]
             merge_dicts(query['children'], children)
 
-            if not self.many:
-                value = [value]
-
-            value = set(x for x in value if x is not None)
-            query['parameters']['ids'] = query['parameters']['ids'].union(value)
+            ids = value if self.many else [value]
+            ids = set(x for x in ids if x is not None)
+            query['parameters']['ids'] = query['parameters']['ids'].union(ids)
 
         return value
 
