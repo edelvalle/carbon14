@@ -18,14 +18,14 @@ collections = {}
 
 
 @decorator
-def expose(collection: Collection, name) -> Collection:
-    collections[name] = collection()
+def expose(collection: Collection, name, *args, **kwargs) -> Collection:
+    collections[name] = collection(*args, **kwargs)
     return collection
 
 
 class GraphQLParser(BaseParser):
 
-    media_type = 'application/graphsql'
+    media_type = 'application/graphql'
     renderer_class = JSONRenderer
 
     def parse(self, stream, media_type=None, parser_context=None):
@@ -42,7 +42,7 @@ class ModelCollection(Collection):
 
     _auth_required = True
 
-    def _resolve(self, instances, ctx, ids=None, **kwargs):
+    def _resolve(self, level, instances, ctx, ids=None, **kwargs):
         if self._auth_required and not ctx.user.is_authenticated():
             instances = instances.none()
         else:
