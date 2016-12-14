@@ -39,7 +39,7 @@ class Field:
         self.many = many
 
     def to_value(self, instance, children, **kwargs):
-        value = self.serialize(instance, children, **kwargs)
+        value = self.serialize(instance, children=children, **kwargs)
 
         # ask for new items
         if self.ref:
