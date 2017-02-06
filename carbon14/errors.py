@@ -31,3 +31,10 @@ class LexicalError(Carbon14Error):
                 value, ', '.join(expected_kinds), line, column
             )
         super().__init__(msg)
+
+
+class MissingCollection(Carbon14Error):
+
+    def __init__(self, collection_name):
+        msg = 'Attempt to query non-existing collection "%s".' % collection_name
+        super().__init__(msg)

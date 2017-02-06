@@ -3,6 +3,8 @@ from collections import defaultdict
 from xoutil.context import context
 from xoutil.decorator.meta import decorator
 
+from .errors import MissingCollection
+
 
 def merge_dicts(dest, source):
     """
@@ -171,4 +173,6 @@ class RootNode:
                 )
                 for r in collection_results:
                     results[child][r['id']].update(r)
+            else:
+                raise MissingCollection(child)
         return results

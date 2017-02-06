@@ -1,6 +1,6 @@
 from carbon14 import graphql
 from carbon14.neonode import Collection, RootNode, Field, All, field
-
+from carbon14.errors import MissingCollection
 
 # Models
 
@@ -54,7 +54,7 @@ class Books(Collection):
 
     _source = BOOKS
 
-    def _resolve(self, instances, ids=All, **kwargs):
+    def _resolve(self, level, instances, ctx, ids=All, **kwargs):
         return [i for i in instances if i.id in ids]
 
 
@@ -76,11 +76,8 @@ class Authors(Collection):
                     ids.append(book_id)
         return ids
 
-    def _resolve(self, instances, ids=All, **kwargs):
-        instances = [
-            i for i in instances if i.id in ids
-        ]
-        return instances
+    def _resolve(self, level, instances, ctx, ids=All, **kwargs):
+        return [i for i in instances if i.id in ids]
 
 
 def execute(query):
@@ -128,8 +125,8 @@ def test_subquery():
     """)
     assert data == {
         'authors': {
-            22: {'books': {3, 4}, 'id': 22},
-            32: {'books': {1, 2}, 'id': 32},
+            22: {'books': [3, 4], 'id': 22},
+            32: {'books': [1, 2], 'id': 32},
         },
         'books': {
             1: {'id': 1, 'title': 'El becheló'},
@@ -150,14 +147,26 @@ def test_with_parameters_in_subquery():
             }
         }
     """)
-    from pprint import pprint
     assert data == {
         'authors': {
-            22: {'books': {3}, 'id': 22},
-            32: {'books': {1}, 'id': 32},
+            22: {'books': [3], 'id': 22},
+            32: {'books': [1], 'id': 32},
         },
         'books': {
             1: {'id': 1, 'title': 'El becheló'},
             3: {'id': 3, 'title': 'El bocaza'},
         },
     }
+
+
+def test_query_for_missing_collections():
+    try:
+        execute("""
+            coco {
+                id
+            }
+        """)
+    except MissingCollection:
+        assert True
+    else:
+        assert False
