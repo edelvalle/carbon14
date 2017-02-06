@@ -1,6 +1,6 @@
 from carbon14 import graphql
 from carbon14.neonode import Collection, RootNode, Field, All, field
-from carbon14.errors import MissingCollection
+from carbon14.errors import MissingCollection, MissingFields
 
 # Models
 
@@ -161,7 +161,7 @@ def test_with_parameters_in_subquery():
 
 def test_query_for_missing_collections():
     try:
-        execute("""
+        data = execute("""
             coco {
                 id
             }
@@ -169,4 +169,17 @@ def test_query_for_missing_collections():
     except MissingCollection:
         assert True
     else:
-        assert False
+        assert False, data
+
+
+def test_query_for_missing_attributes():
+    try:
+        data = execute("""
+            books {
+                misingattr
+            }
+        """)
+    except MissingFields:
+        assert True
+    else:
+        assert False, data

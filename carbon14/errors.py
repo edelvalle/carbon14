@@ -38,3 +38,13 @@ class MissingCollection(Carbon14Error):
     def __init__(self, collection_name):
         msg = 'Attempt to query non-existing collection "%s".' % collection_name
         super().__init__(msg)
+
+
+class MissingFields(Carbon14Error):
+
+    def __init__(self, collection_name, missing_fields):
+        msg = 'Attempt to query non-existing fields %s in collection "%s".' % (
+            missing_fields,
+            collection_name,
+        )
+        super().__init__(msg)
