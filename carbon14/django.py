@@ -59,8 +59,15 @@ class GraphQLView(APIView):
 
     def post(self, request):
         root_node = RootNode(**collections)
-        data = root_node.serialize(children=request.data, ctx=request)
-        return Response(data)
+        try:
+            data = root_node.serialize(children=request.data, ctx=request)
+        except Carbon14Error as e:
+            return Response(
+                {'details': str(e)},
+                status=400
+            )
+        else:
+            return Response(data)
 
 
 class DateTime(Field):
