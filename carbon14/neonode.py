@@ -3,6 +3,8 @@ from collections import defaultdict
 from xoutil.context import context
 from xoutil.decorator.meta import decorator
 
+from .errors import MissingCollection, MissingFields
+
 
 def merge_dicts(dest, source):
     """
@@ -92,13 +94,19 @@ class Collection(metaclass=Node):
 
     id = Field()
 
-    def _to_value(self, level, instances=..., children=None, **kwargs):
+    def _to_value(
+            self, collection_name, level, instances=..., children=None,
+            **kwargs):
         instances = self._source if instances is ... else instances
         children = children or {}
         children.setdefault('id', {'parameters': {}, 'children': {}})
 
         instances = self._resolve(level, instances, **kwargs)
         children = self._filter_children(children, instances, **kwargs)
+
+        missing_fields = set(children) - set(self._fields)
+        if missing_fields:
+            raise MissingFields(collection_name, missing_fields)
 
         return self._serialize(instances, children, ctx=kwargs.get('ctx'))
 
@@ -165,10 +173,13 @@ class RootNode:
             collection = self.collections.get(child)
             if collection:
                 collection_results = collection._to_value(
+                    collection_name=child,
                     level=level,
                     children=query['children'],
                     **dict(query['parameters'], ctx=ctx)
                 )
                 for r in collection_results:
                     results[child][r['id']].update(r)
+            else:
+                raise MissingCollection(child)
         return results

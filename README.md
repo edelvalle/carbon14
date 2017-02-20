@@ -34,16 +34,16 @@ from carbon14.django import expose
 
 class ModelCollection(Collection):
 
-    def _resolve(self, instances, ctx, ids=(), **kwargs):
+    def _resolve(self, level, instances, ctx, ids=None, **kwargs):
         """
         @param ctx: is the http request
         """
-        if ctx.user.is_authenticated():
-            if ids:
-                instances = instances.filter(id__in=ids)
-            return instances
+        if self._auth_required and not ctx.user.is_authenticated():
+            instances = instances.none()
         else:
-            return instances.none()
+            if ids is not None:
+                instances = instances.filter(id__in=ids)
+        return instances
 
 
 @expose('books')
@@ -69,8 +69,8 @@ class Authors(ModelCollection):
 
 Install the package in development mode:
 
-
     $ python setup.py develop
+
 
 Install `py.test` and run:
 
