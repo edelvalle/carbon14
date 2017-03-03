@@ -1,6 +1,7 @@
 
 from collections import defaultdict
 from xoutil.context import context
+from xoutil.objects import get_first_of
 from xoutil.decorator.meta import decorator
 
 from .errors import MissingCollection, MissingFields
@@ -55,7 +56,7 @@ class Field:
         return value
 
     def serialize(self, instance, children, **kwargs):
-        value = getattr(instance, self.attr, None)
+        value = get_first_of(instance, self.attr)
         if value and self.call:
             value = value()
         return value
