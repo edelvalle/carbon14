@@ -1,7 +1,9 @@
 from xoutil.decorator.meta import decorator
+from xoutil.objects import get_first_of
 
 from django.conf import settings
 from django.utils import timezone
+from django.contrib.gis.geos import Point
 
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -75,4 +77,12 @@ class DateTime(Field):
     def serialize(self, instance, children, **kwargs):
         value = super().serialize(instance, children, **kwargs)
         value = value and timezone.localtime(value)
+        return value
+
+
+class PointField(Field):
+    def serialize(self, instance, *args, **kwargs):
+        value = get_first_of(instance, self.attr)
+        if isinstance(value, Point):
+            value = tuple(value)
         return value
