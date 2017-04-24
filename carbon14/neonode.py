@@ -98,7 +98,7 @@ class Collection(metaclass=Node):
     def _to_value(
             self, collection_name, level, instances=..., children=None,
             **kwargs):
-        instances = self._source if instances is ... else instances
+        instances = self._source.all() if instances is ... else instances
         children = children or {}
         children.setdefault('id', {'parameters': {}, 'children': {}})
 
