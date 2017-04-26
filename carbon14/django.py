@@ -50,7 +50,7 @@ class ModelCollection(Collection):
         else:
             if ids is not None:
                 instances = instances.filter(id__in=ids)
-        return instances
+        return instances.all()
 
 
 class GraphQLView(APIView):
