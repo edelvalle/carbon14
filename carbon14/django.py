@@ -44,13 +44,34 @@ class ModelCollection(Collection):
 
     _auth_required = True
 
-    def _resolve(self, level, instances, ctx, ids=None, **kwargs):
+    def _resolve(
+            self,
+            level,
+            instances,
+            ctx,
+            ids=None,
+            limit=None,
+            offset=None,
+            **kwargs
+    ):
         if self._auth_required and not ctx.user.is_authenticated():
             instances = instances.none()
         else:
             if ids is not None:
                 instances = instances.filter(id__in=ids)
-        return instances.all()
+
+        instances = instances.all()
+
+        if limit and offset:
+            instances = instances[offset:offset + limit]
+
+        if offset and not limit:
+            instances = instances[offset:]
+
+        if limit and not offset:
+            instances = instances[:limit]
+
+        return instances
 
 
 class GraphQLView(APIView):
@@ -105,5 +126,5 @@ class PaginatedModelCollection(ModelCollection):
             ctx,
             ids,
             **kwargs
-        )[offset:offset + limit]
+        )
 
