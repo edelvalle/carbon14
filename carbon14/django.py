@@ -105,5 +105,5 @@ class PaginatedModelCollection(ModelCollection):
             ctx,
             ids,
             **kwargs
-        )[offset:limit]
+        )[offset:offset + limit]
 
