@@ -86,3 +86,24 @@ class PointField(Field):
         if isinstance(value, Point):
             value = tuple(value)
         return value
+
+
+class PaginatedModelCollection(ModelCollection):
+    def _resolve(
+            self,
+            level,
+            instances,
+            ctx,
+            ids=None,
+            offset=0,
+            limit=0,
+            **kwargs
+    ):
+        return super()._resolve(
+            level,
+            instances,
+            ctx,
+            ids,
+            **kwargs
+        )[offset:limit]
+
