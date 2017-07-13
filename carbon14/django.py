@@ -69,7 +69,7 @@ class ModelCollection(Collection):
             instances = instances[offset:]
 
         if limit and not offset:
-            instances = instances[:limit]
+            instances = instances[0:limit]
 
         return instances
 
