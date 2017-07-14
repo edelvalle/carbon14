@@ -44,13 +44,28 @@ class ModelCollection(Collection):
 
     _auth_required = True
 
-    def _resolve(self, level, instances, ctx, ids=None, **kwargs):
+    def _resolve(
+            self,
+            level,
+            instances,
+            ctx,
+            ids=None,
+            limit=None,
+            offset=0,
+            **kwargs
+    ):
         if self._auth_required and not ctx.user.is_authenticated():
             instances = instances.none()
         else:
             if ids is not None:
                 instances = instances.filter(id__in=ids)
-        return instances.all()
+
+        instances = instances.all()[offset:]
+
+        if limit:
+            instances = instances[:limit]
+
+        return instances
 
 
 class GraphQLView(APIView):
