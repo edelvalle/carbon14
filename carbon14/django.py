@@ -51,7 +51,7 @@ class ModelCollection(Collection):
             ctx,
             ids=None,
             limit=None,
-            offset=None,
+            offset=0,
             **kwargs
     ):
         if self._auth_required and not ctx.user.is_authenticated():
@@ -60,16 +60,10 @@ class ModelCollection(Collection):
             if ids is not None:
                 instances = instances.filter(id__in=ids)
 
-        instances = instances.all()
+        instances = instances.all()[offset:]
 
-        if limit and offset:
-            instances = instances[offset:offset + limit]
-
-        if offset and not limit:
-            instances = instances[offset:]
-
-        if limit and not offset:
-            instances = instances[0:limit]
+        if limit:
+            instances = instances[:limit]
 
         return instances
 
