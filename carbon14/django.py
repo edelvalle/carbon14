@@ -54,7 +54,7 @@ class ModelCollection(Collection):
             offset=0,
             **kwargs
     ):
-        if self._auth_required and not ctx.user.is_authenticated():
+        if self._auth_required and not ctx.user.is_authenticated:
             instances = instances.none()
         else:
             if ids is not None:
