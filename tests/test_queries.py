@@ -1,15 +1,24 @@
+from pytest import raises
+
 from carbon14 import graphql
-from carbon14.neonode import Collection, RootNode, Field, All, field
-from carbon14.errors import MissingCollection, MissingFields
+from carbon14.neonode import RootNode, Node
+from carbon14.errors import MissingNode, MissingFields
 
 # Models
 
 
 class Book:
-    def __init__(self, id, title, author):
+    def __init__(self, id, title, n_pages, author):
         self.id = id
         self.title = title
-        self.author = author
+        self.n_pages = n_pages
+        self._author = author
+
+    @property
+    def author(self):
+        for author in AUTHORS:
+            if author.id == self._author:
+                return author
 
 
 class Author:
@@ -17,14 +26,22 @@ class Author:
         self.id = id
         self.name = name
         self.is_alive = is_alive
-        self.books = books
+        self._books = books
+
+    @property
+    def books(self):
+        books = []
+        for book in BOOKS:
+            if book.id in self._books:
+                books.append(book)
+        return books
 
 
 BOOKS = [
-    Book(id=1, title='El becheló', author=32),
-    Book(id=2, title='Dog and Cat', author=32),
-    Book(id=3, title='El bocaza', author=22),
-    Book(id=4, title='Dungeon', author=22),
+    Book(id=1, title='El becheló', n_pages=100, author=32),
+    Book(id=2, title='Dog and Cat', n_pages=200, author=32),
+    Book(id=3, title='El bocaza', n_pages=300, author=22),
+    Book(id=4, title='Dungeon', n_pages=400, author=22),
 ]
 
 
@@ -46,47 +63,27 @@ AUTHORS = [
 
 # Nodes
 
-class Books(Collection):
+class Books(Node):
+    class Meta(Node.Meta):
+        name = 'books'
+        source = BOOKS
+        fields = ('id', 'title', 'n_pages')
+        nested_fields = {'author': 'authors'}
 
-    id = Field()
-    title = Field()
-    author = Field(ref='authors')
-
-    _source = BOOKS
-
-    def _resolve(self, level, instances, ctx, ids=All, **kwargs):
-        return [i for i in instances if i.id in ids]
+    def filter(self, _source, title_contains='', **kwargs):
+        return [book for book in _source if title_contains in book.title]
 
 
-class Authors(Collection):
-
-    id = Field()
-    name = Field()
-    is_alive = Field()
-    books = Field(ref='books', many=True)
-
-    _source = AUTHORS
-
-    @field(ref='books', many=True)
-    def books(instance, children, title_contains='', *args, **kwargs):
-        ids = []
-        for book_id in instance.books:
-            for book in BOOKS:
-                if book.id == book_id and title_contains in book.title:
-                    ids.append(book_id)
-        return ids
-
-    def _resolve(self, level, instances, ctx, ids=All, **kwargs):
-        return [i for i in instances if i.id in ids]
+class Authors(Node):
+    class Meta(Node.Meta):
+        name = 'authors'
+        source = AUTHORS
+        fields = ('id', 'name', 'is_alive')
+        nested_fields = {'books': 'books'}
 
 
 def execute(query):
-    return RootNode(
-        books=Books(),
-        authors=Authors()
-    ).serialize(
-        children=graphql.parse(query)
-    )
+    return RootNode([Books, Authors]).query(graphql.parse(query))
 
 
 # Tests
@@ -99,12 +96,9 @@ def test_empty_query():
 def test_simple_query():
     data = execute("""
         authors {
-            id
             name
         }
     """)
-    from pprint import pprint
-    pprint(data)
     assert data == {
         'authors': {
             22: {'id': 22, 'name': 'John'},
@@ -116,17 +110,15 @@ def test_simple_query():
 def test_subquery():
     data = execute("""
         authors {
-            id
             books {
-                id
                 title
             }
         }
     """)
     assert data == {
         'authors': {
-            22: {'books': [3, 4], 'id': 22},
-            32: {'books': [1, 2], 'id': 32},
+            22: {'books': ('books', [3, 4]), 'id': 22},
+            32: {'books': ('books', [1, 2]), 'id': 32},
         },
         'books': {
             1: {'id': 1, 'title': 'El becheló'},
@@ -140,17 +132,15 @@ def test_subquery():
 def test_with_parameters_in_subquery():
     data = execute("""
         authors {
-            id
             books (title_contains: "El") {
-                id
                 title
             }
         }
     """)
     assert data == {
         'authors': {
-            22: {'books': [3], 'id': 22},
-            32: {'books': [1], 'id': 32},
+            22: {'books': ('books', [3]), 'id': 22},
+            32: {'books': ('books', [1]), 'id': 32},
         },
         'books': {
             1: {'id': 1, 'title': 'El becheló'},
@@ -159,27 +149,66 @@ def test_with_parameters_in_subquery():
     }
 
 
+def test_with_subquery_and_another_query_to_check_interpolation():
+    data = execute("""
+        authors {
+            books (title_contains: "El") {
+                title
+            }
+        }
+        books { n_pages }
+    """)
+    assert data == {
+        'authors': {
+            22: {'books': ('books', [3]), 'id': 22},
+            32: {'books': ('books', [1]), 'id': 32},
+        },
+        'books': {
+            1: {'id': 1, 'title': 'El becheló', 'n_pages': 100},
+            2: {'id': 2, 'n_pages': 200},
+            3: {'id': 3, 'title': 'El bocaza', 'n_pages': 300},
+            4: {'id': 4, 'n_pages': 400},
+        },
+    }
+
+
+def test_inverse_subquery_with_parameters():
+    data = execute("""
+        books (title_contains: "El") {
+            title
+            author {
+                name
+            }
+        }
+    """)
+
+    from pprint import pprint
+    pprint(data)
+    assert data == {
+        'books': {
+            1: {'id': 1, 'title': 'El becheló', 'author': ('authors', 32)},
+            3: {'id': 3, 'title': 'El bocaza', 'author': ('authors', 22)},
+        },
+        'authors': {
+            22: {'name': 'John', 'id': 22},
+            32: {'name': 'Grace', 'id': 32},
+        },
+    }, data
+
+
 def test_query_for_missing_collections():
-    try:
-        data = execute("""
+    with raises(MissingNode):
+        execute("""
             coco {
                 id
             }
         """)
-    except MissingCollection:
-        assert True
-    else:
-        assert False, data
 
 
 def test_query_for_missing_attributes():
-    try:
-        data = execute("""
+    with raises(MissingFields):
+        execute("""
             books {
                 misingattr
             }
         """)
-    except MissingFields:
-        assert True
-    else:
-        assert False, data

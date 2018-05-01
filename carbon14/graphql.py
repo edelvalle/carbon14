@@ -2,13 +2,11 @@
 import re
 import json
 from collections import namedtuple
+from functools import lru_cache
 
-from xoutil.functools import lru_cache
 
 from .errors import TokenizerError, LexicalError
 
-
-# from .errors import
 
 Token = namedtuple('Token', ['kind', 'value', 'line', 'column'])
 
@@ -100,10 +98,10 @@ class Parser:
             )
 
     def parse(self):
-        return self.parse_children({})
+        return self.parse_fields({})
 
-    def parse_children(self, ast):
-        """ CHILDREN := { ENTRY* } """
+    def parse_fields(self, ast):
+        """ FIELDS := { ENTRY* } """
         token = self.consume('BRACKET_OPEN', null=True)
         if token:
             while self.current.kind != 'BRACKET_CLOSE':
@@ -112,17 +110,17 @@ class Parser:
         return ast
 
     def parse_entry(self, ast):
-        """ ENTRY := PARAMETERS CHILDREN """
+        """ ENTRY := PARAMETERS FIELDS """
         token = self.consume('NAME')
         ast[token.value] = {
-            'parameters': self.parse_parameters({}),
-            'children': self.parse_children({}),
+            'kwargs': self.parse_kwargs({}),
+            'fields': self.parse_fields({}),
         }
         return ast
 
-    def parse_parameters(self, ast):
-        """ PARAMETERS := ( [PARAMETER[,]]* )
-            PARAMETERS := null
+    def parse_kwargs(self, ast):
+        """ KWARGS := ( [PARAMETER[,]]* )
+            KWARGS := null
         """
         token = self.consume('PARENTHESIS_OPEN', null=True)
         if token:

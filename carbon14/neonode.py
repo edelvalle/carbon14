@@ -1,186 +1,109 @@
-
 from collections import defaultdict
-from xoutil.context import context
-from xoutil.objects import get_first_of
-from xoutil.decorator.meta import decorator
+from functools import partial
 
-from .errors import MissingCollection, MissingFields
-
-
-def merge_dicts(dest, source):
-    """
-    source: {'children': {}, 'parameters': {'ids': [1, 2, 3, 1]}}
-    dest: {'children': {'a': {'x': 1}}, 'parameters': {'ids': [1, 1, 4, 1]}}
-
-    output: {'children': {'a': {'x': 1}}, 'parameters': {'ids': [1, 2, 3, 4]}}
-    """
-    for k, v in source.items():
-        if k not in dest:
-            dest[k] = v
-        else:
-            if isinstance(v, list):
-                dest[k] = list(set(dest[k]).union(set(v)))
-            elif isinstance(v, dict):
-                merge_dicts(dest[k], source[k])
-    return dest
-
-
-class All:
-    def __contains__(self, *args, **kwargs):
-        return True
-
-
-All = All()
-
-
-class Field:
-
-    def __init__(self, ref=None, attr=None, call=False, many=False):
-        self.attr = attr
-        self.call = call
-        self.ref = ref
-        self.many = many
-
-    def to_value(self, instance, children, **kwargs):
-        value = self.serialize(instance, children=children, **kwargs)
-
-        # ask for new items
-        if self.ref:
-            query = context['carbon14'].children[self.ref]
-            merge_dicts(query['children'], children)
-
-            ids = value if self.many else [value]
-            ids = set(x for x in ids if x is not None)
-            query['parameters']['ids'] = query['parameters']['ids'].union(ids)
-
-        return value
-
-    def serialize(self, instance, children, **kwargs):
-        value = get_first_of(instance, self.attr)
-        if value and self.call:
-            value = value()
-        return value
-
-
-class MethodField(Field):
-
-    def __init__(self, method=None, **kwargs):
-        super().__init__(**kwargs)
-        self.serialize = method
-
-
-@decorator
-def field(fn, *args, **kwargs):
-    return MethodField(method=fn, *args, **kwargs)
-
-
-class Node(type):
-
-    def __new__(cls, name, bases, attrs):
-        fields = {}
-        for field_name, field in attrs.items():
-            if isinstance(field, Field):
-                field.attr = field.attr or field_name
-                fields[field_name] = field
-
-        attrs['_fields'] = fields
-
-        real_class = super().__new__(cls, name, bases, attrs)
-        return real_class
-
-
-class Collection(metaclass=Node):
-
-    _source = ()
-
-    id = Field()
-
-    def _to_value(
-            self, collection_name, level, instances=..., children=None,
-            **kwargs):
-        instances = self._source if instances is ... else instances
-        children = children or {}
-        children.setdefault('id', {'parameters': {}, 'children': {}})
-
-        instances = self._resolve(level, instances, **kwargs)
-        children = self._filter_children(children, instances, **kwargs)
-
-        missing_fields = set(children) - set(self._fields)
-        if missing_fields:
-            raise MissingFields(collection_name, missing_fields)
-
-        return self._serialize(instances, children, ctx=kwargs.get('ctx'))
-
-    def _resolve(self, level, instances, **kwargs):
-        return instances
-
-    def _filter_children(self, children, instances, **kwargs):
-        return children
-
-    def _serialize(self, instances, children, ctx):
-        return [
-            {
-                child: self._fields[child].to_value(
-                    instance,
-                    children=query['children'],
-                    **dict(query['parameters'], ctx=ctx)
-                )
-                for child, query in children.items()
-                if child in self._fields
-            }
-            for instance in instances
-        ]
+from .errors import MissingNode, MissingFields
 
 
 class RootNode:
-    def __init__(self, **collections):
-        self.collections = collections
 
-    def serialize(self, children, ctx=None):
+    def __init__(self, nodes, ctx=None):
+        self.nodes = self.validate_nodes({c.Meta.name: c for c in nodes})
+        self.ctx = ctx
+
+    def validate_nodes(self, nodes):
+        for node in nodes.values():
+            for nested_field, node_name in node.Meta.nested_fields.items():
+                if node_name not in nodes:
+                    raise MissingNode(node_name)
+        return nodes
+
+    def query(self, query):
+        """
+        query = {'book': {'kwargs': {}, 'fields': `query`}}
+        """
         results = defaultdict(lambda: defaultdict(dict))
-        more_objects_required = True
-
-        level = 0
-
-        while more_objects_required:
-            future_children = defaultdict(
-                lambda: {
-                    'children': {},
-                    'parameters': {'ids': set(), 'ctx': ctx},
-                }
-            )
-
-            with context('carbon14', children=future_children):
-                results = self._serialize(level, results, children, ctx)
-
-            more_objects_required = False
-
-            for collection, objs in results.items():
-                ids = set(objs)
-                parameters = future_children[collection]['parameters']
-                parameters['ids'] = parameters['ids'].difference(ids)
-
-            for query in future_children.values():
-                if query['parameters']['ids']:
-                    more_objects_required = True
-                    children = future_children
-
-            level += 1
-
+        for field, data in query.items():
+            self.solve(results, field, **data)
         return results
 
-    def _serialize(self, level, results, children, ctx):
-        for child, query in children.items():
-            collection = self.collections.get(child)
-            if collection:
-                collection_results = collection._to_value(
-                    collection_name=child,
-                    level=level,
-                    children=query['children'],
-                    **dict(query['parameters'], ctx=ctx)
-                )
-                for r in collection_results:
-                    results[child][r['id']].update(r)
-            else:
-                raise MissingCollection(child)
-        return results
+    def solve(self, results, field, **data):
+        node = self.nodes.get(field)
+        if not node or not node.Meta.exposed:
+            raise MissingNode(field)
+        return node(self.ctx, self.nodes).query(results, **data)
+
+
+class Node:
+
+    class Meta:
+        exposed = True
+        name = ''
+        source = ()
+        fields = ('id',)
+        nested_fields = {}
+
+    def __init__(self, ctx, nodes):
+        self.ctx = ctx
+        self.nodes = nodes
+
+    def query(self, results, kwargs, fields, source=None):
+        source = self.Meta.source if source is None else source
+        fields_to_solve = {
+            f: v
+            for f, v in fields.items()
+            if f in self.Meta.fields or f in self.Meta.nested_fields
+        }
+        missing_fields = set(fields) - set(fields_to_solve)
+        if missing_fields:
+            raise MissingFields(self.Meta.name, missing_fields)
+
+        items = self.filter(_source=source, **kwargs)
+        return [self.serialize(results, item, fields) for item in items]
+
+    def filter(self, _source, **kwargs):
+        return _source
+
+    def serialize(self, results, item, item_fields):
+        result = {'id': self.resolve_id(item)}
+        for field_name, data in item_fields.items():
+            kwargs = data.get('kwargs', {})
+            fields = data.get('fields', {})
+
+            value = self.resolve(item, field_name, kwargs)
+            node = self.get_node_for(field_name)
+            if value is not None and node:
+                if node.is_collection(value):
+                    value = node.query(results, source=value, **data)
+                    value = (node.Meta.name, [v['id'] for v in value])
+                else:
+                    value = node.serialize(results, value, fields)
+                    value = (node.Meta.name, value['id'])
+
+            result[field_name] = value
+
+        results[self.Meta.name][result['id']].update(result)
+        return result
+
+    def resolve_id(self, item):
+        return item.id
+
+    def resolve(self, item, field_name, kwargs):
+        resolver = getattr(self, f'resolve_{field_name}', None)
+        if resolver:
+            value = partial(resolver, item)
+        else:
+            value = getattr(item, field_name, None)
+
+        if callable(value):
+            value = value(**kwargs)
+
+        return value
+
+    def get_node_for(self, field_name):
+        node_name = self.Meta.nested_fields.get(field_name)
+        if node_name:
+            OtherNode = self.nodes[node_name]
+            return OtherNode(self.ctx, self.nodes)
+
+    def is_collection(self, value):
+        return isinstance(value, (list, tuple, set))

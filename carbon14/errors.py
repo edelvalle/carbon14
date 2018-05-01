@@ -33,18 +33,18 @@ class LexicalError(Carbon14Error):
         super().__init__(msg)
 
 
-class MissingCollection(Carbon14Error):
+class MissingNode(Carbon14Error):
 
-    def __init__(self, collection_name):
-        msg = 'Attempt to query non-existing collection "%s".' % collection_name
-        super().__init__(msg)
+    def __init__(self, node_name):
+        super().__init__(
+            f'Attempt to query non-existing node "{node_name}".'
+        )
 
 
 class MissingFields(Carbon14Error):
 
-    def __init__(self, collection_name, missing_fields):
-        msg = 'Attempt to query non-existing fields %s in collection "%s".' % (
-            missing_fields,
-            collection_name,
+    def __init__(self, node_name, missing_fields):
+        super().__init__(
+            f'Node "{node_name}"" does not have this fields: '
+            f'{missing_fields}'
         )
-        super().__init__(msg)

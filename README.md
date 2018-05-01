@@ -1,6 +1,6 @@
 # Carbon 14
 
-This library is a GraphQL serializer that exposes the data in a Falcor like format.
+This library  QraphQL like query language that exposes the data in a Falcor like format.
 
 Take a look to the tests in the file [`tests/test_queries.py`](tests/test_queries.py)
 
@@ -8,7 +8,7 @@ Take a look to the tests in the file [`tests/test_queries.py`](tests/test_querie
 
 To integrate with Django you will require Django REST Framework.
 
-Put this in your `urls.py` file
+Put this in your `urls.py` file, passing in the `nodes` parameters the nodes you will handle in this endpoint.
 
 ```python
 ...
@@ -17,52 +17,42 @@ from carbon14.django import GraphQLView
 
 urlpatters = [
     ...
-    url(r'graphql/$', GraphQLView.as_view()),
+    url(r'graphql/$', GraphQLView.as_view(nodes=[Users, Groups])),
     ...
 ]
 
 ...
 ```
 
-Don't worry about the RootNode, it is created automatically the only thing you need to do is decorate the nodes you want to expose in the RootNode like this:
+To expose a resource write the spec for a Node:
 
 ```python
 
-from carbon14.neonode import Field, Collection
-from carbon14.django import expose
+from carbon14.neonode import ModelNode
+from .models import Author, Book
+
+class Books(ModelNode):
+    class Meta(ModelNode.Meta):
+        name = 'books'
+        source = Books.objects.all()
+        fields = ('id', 'title', 'author')
+        nested_fields = {'author': 'authors'}
 
 
-class ModelCollection(Collection):
+class Authors(ModelNode):
+    class Meta(ModelNode.Meta):
+        name = 'authors'
+        source = Author.objects.all()
+        fields = ('id', 'first_name', 'last_name', 'full_name', 'is_alive')
+        nested_fields = {'books': 'books'}
 
-    def _resolve(self, level, instances, ctx, ids=None, **kwargs):
-        """
-        @param ctx: is the http request
-        """
-        if self._auth_required and not ctx.user.is_authenticated():
-            instances = instances.none()
-        else:
-            if ids is not None:
-                instances = instances.filter(id__in=ids)
-        return instances
+    def resolve_full_name(self, author, **kwargs):
+        return f'{author.first_name} {author.last_name}'
 
-
-@expose('books')
-class Books(ModelCollection):
-    _source = Books.objects.all()
-
-    id = Field()
-    title = Field()
-    author_id = Field()
-
-
-@expose('authors')
-class Authors(ModelCollection):
-    _source = Author.objects.all()
-
-    id = Field()
-    name = Field()
-    is_alive = Field()
-    book_ids = Field(ref='books', many=True)
+    def filter(self, _source, name_startswith='', **kwargs):
+        if name_startswith:
+            _source = _source.filter(first_name__startswith=name_startswith) 
+        return _source
 ```
 
 ## Testing

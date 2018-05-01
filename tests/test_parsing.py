@@ -74,23 +74,23 @@ def test_parser():
     result = graphql.parse(query)
     assert result == {
         '__schema': {
-            'parameters': {},
-            'children': {
+            'kwargs': {},
+            'fields': {
                 'aName': {
-                    'parameters': {},
-                    'children': {},
+                    'kwargs': {},
+                    'fields': {},
                 },
                 'queryType': {
-                    'parameters': {
+                    'kwargs': {
                         'id': -23,
                         'a': 'asd"s',
                         'alex': False,
                         'coco': None,
                     },
-                    'children': {
+                    'fields': {
                         'name': {
-                            'parameters': {},
-                            'children': {}
+                            'kwargs': {},
+                            'fields': {}
                         }
                     }
                 }
@@ -126,13 +126,13 @@ def test_parser_with_dict_as_parameter_value():
     result = graphql.parse(query)
     assert result == {
         'coco': {
-            'parameters': {
+            'kwargs': {
                 'param1': {
                     'a': 'X',
                     'x': [1, 2],
                 }
             },
-            'children': {}
+            'fields': {}
         }
     }
 
@@ -142,13 +142,13 @@ def test_parser_with_list_as_parameter_value():
     result = graphql.parse(query)
     assert result == {
         'coco': {
-            'parameters': {
+            'kwargs': {
                 'param1': [
                     'a',
                     'X',
                     {'x': [1, 2]}
                 ]
             },
-            'children': {}
+            'fields': {}
         }
     }
