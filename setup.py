@@ -7,7 +7,7 @@ def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
 
 
-VERSION = '1.0.0rc'
+VERSION = '1.0.0rc1'
 
 setup(
     name='carbon14',
