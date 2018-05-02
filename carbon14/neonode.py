@@ -2,11 +2,13 @@ from collections import defaultdict
 from functools import partial
 
 from .errors import MissingNode, MissingFields
+from .utils import import_string
 
 
 class RootNode:
 
     def __init__(self, nodes, ctx=None):
+        nodes = [import_string(n) if isinstance(n, str) else n for n in nodes]
         self.nodes = self.validate_nodes({c.Meta.name: c for c in nodes})
         self.ctx = ctx
 
