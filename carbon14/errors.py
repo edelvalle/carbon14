@@ -23,7 +23,7 @@ class LexicalError(Carbon14Error):
         self.expected_kinds = expected_kinds
 
         if expected_kinds is None:
-            msg = 'Unexpected EOF while parsing %s at %d:%d' % (
+            msg = 'Unexpected EOF while parsing "%s" at %d:%d' % (
                 value, line, column
             )
         else:

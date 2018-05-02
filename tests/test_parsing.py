@@ -121,6 +121,27 @@ def test_parser_with_lexic_error():
         assert False, "No LexicalError found :'("
 
 
+def test_parser_with_another_lexic_error():
+    query = """
+        tasks {
+            code
+            name
+            steps {
+                name
+                time
+            }
+    """
+    try:
+        graphql.parse(query)
+    except LexicalError as e:
+        assert e.value == '}'
+        assert e.line == 8
+        assert e.column == 14
+        assert str(e) == 'Unexpected EOF while parsing "}" at 8:14'
+    else:
+        assert False, "No LexicalError found :'("
+
+
 def test_parser_with_dict_as_parameter_value():
     query = """coco (param1: {a: "X", x: [1, 2]} ) """
     result = graphql.parse(query)
