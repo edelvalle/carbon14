@@ -3,7 +3,7 @@ import json
 from functools import partial
 
 from django import forms
-from django.db.models import QuerySet
+from django.db.models import QuerySet, Prefetch
 from django.db.models.fields.files import FieldFile
 from django.http import HttpResponse, JsonResponse
 from django.views.generic import View
@@ -22,40 +22,52 @@ class ModelNode(Node):
         optimize = {}
 
     def query(self, results, kwargs, fields, source=None):
+        self.check_if_requesting_missing_fields(fields)
         if source is None:
             source = self.query_optimization(self.Meta.source, fields)
-        return super().query(results, kwargs, fields, source=source)
+            source = self.filter(source, **kwargs)
+
+        limit = kwargs.get('limit')
+        offset = kwargs.get('offset')
+        if offset:
+            source = source[offset:]
+
+        if limit:
+            source = source[:limit]
+
+        return [self.serialize(results, item, fields) for item in source]
 
     def query_optimization(self, source, fields, prefix=''):
         for field_name, data in fields.items():
-            if field_name in self.Meta.nested_fields:
-                source = source.prefetch_related(field_name)
-
             for f in self.Meta.optimize.get(field_name, []):
                 source = source.prefetch_related(prefix + f)
 
             node = self.get_node_for(field_name)
             if node:
+                source = source.prefetch_related(
+                    Prefetch(
+                        prefix + field_name,
+                        queryset=node.filter(
+                            node.Meta.source,
+                            **data['kwargs']
+                        )
+                    )
+                )
                 source = node.query_optimization(
                     source,
                     data['fields'],
                     prefix=field_name + '__'
                 )
+
         return source
 
-    def filter(self, _source, ids=None, limit=None, offset=None, **kwargs):
+    def filter(self, _source, ids=None, **kwargs):
         instances = _source
         if not self.Meta.is_public and not self.ctx.user.is_authenticated:
             instances = instances.none()
 
         if ids is not None:
             instances = instances.filter(id__in=ids)
-
-        if offset:
-            instances = instances[offset:]
-
-        if limit:
-            instances = instances[:limit]
 
         return instances
 

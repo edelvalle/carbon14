@@ -49,7 +49,12 @@ class Node:
         self.nodes = nodes
 
     def query(self, results, kwargs, fields, source=None):
+        self.check_if_requesting_missing_fields(fields)
         source = self.Meta.source if source is None else source
+        items = self.filter(_source=source, **kwargs)
+        return [self.serialize(results, item, fields) for item in items]
+
+    def check_if_requesting_missing_fields(self, fields):
         fields_to_solve = {
             f: v
             for f, v in fields.items()
@@ -58,9 +63,6 @@ class Node:
         missing_fields = set(fields) - set(fields_to_solve)
         if missing_fields:
             raise MissingFields(self.Meta.name, missing_fields)
-
-        items = self.filter(_source=source, **kwargs)
-        return [self.serialize(results, item, fields) for item in items]
 
     def filter(self, _source, **kwargs):
         return _source
