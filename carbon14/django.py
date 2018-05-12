@@ -105,37 +105,40 @@ class GrapQLForm(forms.Form):
 
 class GraphQLView(View):
 
-    template = Template('''
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8" />
-          <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
-          <meta
-            name="viewport"
-            content="width=device-width,
-            initial-scale=1,
-            minimum-scale=1,
-            maximum-scale=1"
-          >
-          <title>Carbon14</title>
-        </head>
-        <body>
-
-          <form method="post">
-            {{ form }}
-            {% csrf_token %}
-            <input type="submit" value="Query">
-          </form>
-
-          <pre>{{ answer|safe }}</pre>
-
-        </body>
-        </html>
-
-    ''')
     encoder_class = CarbonJSONEncoder
     nodes = tuple()
+
+    @property
+    def template(self):
+        return Template('''
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta charset="utf-8" />
+              <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+              <meta
+                name="viewport"
+                content="width=device-width,
+                initial-scale=1,
+                minimum-scale=1,
+                maximum-scale=1"
+              >
+              <title>Carbon14</title>
+            </head>
+            <body>
+
+              <form method="post">
+                {{ form }}
+                {% csrf_token %}
+                <input type="submit" value="Query">
+              </form>
+
+              <pre>{{ answer|safe }}</pre>
+
+            </body>
+            </html>
+
+        ''')
 
     def get(self, request):
         return HttpResponse(content=self.render(form=GrapQLForm()))
