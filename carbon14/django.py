@@ -9,6 +9,7 @@ from django.http import HttpResponse, JsonResponse
 from django.views.generic import View
 from django.template import Template, RequestContext
 from django.core.serializers.json import DjangoJSONEncoder
+from django.views.decorators.csrf import csrf_exempt
 
 from .graphql import parse
 from .errors import Carbon14Error
@@ -107,6 +108,10 @@ class GraphQLView(View):
 
     encoder_class = CarbonJSONEncoder
     nodes = tuple()
+
+    @classmethod
+    def as_view(cls, *args, **kwargs):
+        return csrf_exempt(super().as_view(*args, **kwargs))
 
     @property
     def template(self):
