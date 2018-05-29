@@ -96,7 +96,7 @@ class ModelNode(Node):
 class CarbonJSONEncoder(DjangoJSONEncoder):
     def default(self, o):
         if isinstance(o, FieldFile):
-            return o.url
+            return o.url if o else None
         return super().default(o)
 
 
