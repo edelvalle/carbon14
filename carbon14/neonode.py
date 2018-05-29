@@ -78,10 +78,10 @@ class Node:
             if value is not None and node:
                 if node.is_collection(value):
                     value = node.query(results, source=value, **data)
-                    value = (node.Meta.name, [v['id'] for v in value])
+                    value = [v['id'] for v in value]
                 else:
                     value = node.serialize(results, value, fields)
-                    value = (node.Meta.name, value['id'])
+                    value = value['id']
 
             result[field_name] = value
 
