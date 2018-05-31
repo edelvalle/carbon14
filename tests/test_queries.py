@@ -2,7 +2,7 @@ from pytest import raises
 from unittest import TestCase
 
 from carbon14 import graphql
-from carbon14.neonode import RootNode, Node
+from carbon14.neonode import RootNode, Node, Field, mutation
 from carbon14.errors import MissingNode, MissingFields
 
 # Models
@@ -56,8 +56,10 @@ class TestQueries(TestCase):
             class Meta(Node.Meta):
                 name = 'books'
                 source = BOOKS
-                fields = ('id', 'title', 'n_pages')
-                nested_fields = {'author': 'authors'}
+
+            title = Field(str)
+            n_pages = Field(int)
+            author = Field('authors')
 
             def filter(self, _source, title_contains='', **kwargs):
                 return [
@@ -75,8 +77,15 @@ class TestQueries(TestCase):
             class Meta(Node.Meta):
                 name = 'authors'
                 source = AUTHORS
-                fields = ('id', 'name', 'is_alive')
-                nested_fields = {'books': 'books', 'kill': 'authors'}
+
+            name = Field(str)
+            is_alive = Field(bool)
+            books = Field('books')
+            kill = Field('authors')
+
+            @mutation
+            def new(self, name, is_alive, books) -> 'authors':
+                return Author('ID', name, is_alive, books)
 
         self.root_node = RootNode([Books, Authors])
 
@@ -109,8 +118,8 @@ class TestQueries(TestCase):
         """)
         assert data == {
             'authors': {
-                22: {'books': ('books', [3, 4]), 'id': 22},
-                32: {'books': ('books', [1, 2]), 'id': 32},
+                22: {'books': [3, 4], 'id': 22},
+                32: {'books': [1, 2], 'id': 32},
             },
             'books': {
                 1: {'id': 1, 'title': 'El becheló'},
@@ -130,8 +139,8 @@ class TestQueries(TestCase):
         """)
         assert data == {
             'authors': {
-                22: {'books': ('books', [3]), 'id': 22},
-                32: {'books': ('books', [1]), 'id': 32},
+                22: {'books': [3], 'id': 22},
+                32: {'books': [1], 'id': 32},
             },
             'books': {
                 1: {'id': 1, 'title': 'El becheló'},
@@ -150,8 +159,8 @@ class TestQueries(TestCase):
         """)
         assert data == {
             'authors': {
-                22: {'books': ('books', [3]), 'id': 22},
-                32: {'books': ('books', [1]), 'id': 32},
+                22: {'books': [3], 'id': 22},
+                32: {'books': [1], 'id': 32},
             },
             'books': {
                 1: {'id': 1, 'title': 'El becheló', 'n_pages': 100},
@@ -172,8 +181,8 @@ class TestQueries(TestCase):
         """)
         assert data == {
             'books': {
-                1: {'id': 1, 'title': 'El becheló', 'author': ('authors', 32)},
-                3: {'id': 3, 'title': 'El bocaza', 'author': ('authors', 22)},
+                1: {'id': 1, 'title': 'El becheló', 'author': 32},
+                3: {'id': 3, 'title': 'El bocaza', 'author': 22},
             },
             'authors': {
                 22: {'name': 'John', 'id': 22},
@@ -189,13 +198,13 @@ class TestQueries(TestCase):
             'authors': {
                 22: {
                     'id': 22,
-                    'kill': ('authors', 22),
+                    'kill': 22,
                     'is_alive': False,
                     'name': 'John',
                 },
                 32: {
                     'id': 32,
-                    'kill': ('authors', 32),
+                    'kill': 32,
                     'is_alive': False,
                     'name': 'Grace',
                 },
@@ -233,3 +242,26 @@ class TestQueries(TestCase):
                     misingattr
                 }
             """)
+
+    def test_mutation_creating_new_uthor(self):
+        data = self.query("""
+            mutations {
+                authors {
+                    new (name: "Ash", is_alive: false, books: null) {
+                        name
+                        is_alive
+                    }
+                }
+            }
+        """)
+        assert data == {
+            'mutations': {'authors': {'new': {
+                'authors': {
+                    'ID': {
+                        'id': 'ID',
+                        'name': 'Ash',
+                        'is_alive': False,
+                    }
+                }
+            }}}
+        }

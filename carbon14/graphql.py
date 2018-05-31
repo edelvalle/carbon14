@@ -140,7 +140,7 @@ class Parser:
         return ast
 
     def consume_value(self):
-        """ VALUE = STRING | NUMBER | BOOL | NULL | LIST """
+        """ VALUE = STRING | NUMBER | BOOL | NULL | LIST | DICT """
         if self.current.kind == 'SQUARE_BRACKET_OPEN':
             return self.consume_list()
         elif self.current.kind == 'BRACKET_OPEN':

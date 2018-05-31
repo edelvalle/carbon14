@@ -1,26 +1,27 @@
 import json
+from uuid import UUID
 
 from functools import partial
 
 from django import forms
 from django.db.models import QuerySet, Prefetch
-from django.db.models.fields.files import FieldFile
+from django.db.transaction import atomic
 from django.http import HttpResponse, JsonResponse
 from django.views.generic import View
 from django.template import Template, RequestContext
+from django.core.exceptions import ValidationError
 from django.core.serializers.json import DjangoJSONEncoder
 from django.views.decorators.csrf import csrf_exempt
 
 from .graphql import parse
 from .errors import Carbon14Error
-from .neonode import RootNode, Node
+from . import neonode
 
 
-class ModelNode(Node):
+class Node(neonode.Node):
 
-    class Meta(Node.Meta):
+    class Meta(neonode.Node.Meta):
         is_public = False
-        optimize = {}
 
     def query(self, results, kwargs, fields, source=None):
         self.check_if_requesting_missing_fields(fields)
@@ -38,22 +39,29 @@ class ModelNode(Node):
 
         return [self.serialize(results, item, fields) for item in source]
 
-    def query_optimization(self, source, fields, prefix=''):
+    def query_optimization(self, source: QuerySet, fields, prefix=''):
         for field_name, data in fields.items():
-            for f in self.Meta.optimize.get(field_name, []):
+
+            # Explicit prefetch
+            fields_to_prefetch = getattr(self, field_name).prefetch
+
+            for f in fields_to_prefetch  or ():
+                print(self, 'pre', prefix + f)
                 source = source.prefetch_related(prefix + f)
 
+            # Related pre-fetch
             node = self.get_node_for(field_name)
             if node:
-                source = source.prefetch_related(
-                    Prefetch(
-                        prefix + field_name,
-                        queryset=node.filter(
-                            node.Meta.source,
-                            **data['kwargs']
+                if fields_to_prefetch is None:
+                    source = source.prefetch_related(
+                        Prefetch(
+                            prefix + field_name,
+                            queryset=node.filter(
+                                node.Meta.source,
+                                **data['kwargs']
+                            )
                         )
                     )
-                )
                 source = node.query_optimization(
                     source,
                     data['fields'],
@@ -62,29 +70,14 @@ class ModelNode(Node):
 
         return source
 
-    def filter(self, _source, ids=None, **kwargs):
-        instances = _source
+    def filter(self, _source: QuerySet, ids=None, **kwargs) -> QuerySet:
         if not self.Meta.is_public and not self.ctx.user.is_authenticated:
-            instances = instances.none()
+            _source = _source.none()
 
         if ids is not None:
-            instances = instances.filter(id__in=ids)
+            _source = _source.filter(id__in=ids)
 
-        return instances
-
-    def resolve(self, item, field_name, kwargs):
-        resolver = getattr(self, f'resolve_{field_name}', None)
-        if resolver:
-            value = partial(resolver, item)
-        else:
-            value = getattr(item, field_name, None)
-
-        all_values = getattr(value, 'all', None)
-        if all_values:
-            value = all_values()
-        elif callable(value):
-            value = value(**kwargs)
-        return value
+        return _source
 
     def is_collection(self, value):
         return isinstance(value, QuerySet) or super().is_collection(value)
@@ -93,11 +86,44 @@ class ModelNode(Node):
         return str(item.id)
 
 
-class CarbonJSONEncoder(DjangoJSONEncoder):
-    def default(self, o):
-        if isinstance(o, FieldFile):
-            return o.url if o else None
-        return super().default(o)
+class Field(neonode.Field):
+    def resolve(self, node: Node, instance, kwargs):
+        resolver = getattr(node, f'resolve_{self.name}', None)
+        if resolver:
+            value = partial(resolver, instance)
+        else:
+            value = getattr(instance, self.name, None)
+
+        all_values = getattr(value, 'all', None)
+        if all_values:
+            value = all_values()
+        elif callable(value):
+            value = value(**kwargs)
+
+        if isinstance(value, UUID):
+            value = str(value)
+
+        return value
+
+
+class FileField(neonode.Field):
+    def __init__(self, a_type=str, *args, **kwargs):
+        super().__init__(a_type, *args, **kwargs)
+
+    def resolve(self, *args, **kwargs):
+        value = super().resolve(*args, **kwargs)
+        if value:
+            return value.url
+
+
+class StringField(neonode.Field):
+    def __init__(self, a_type=str, *args, **kwargs):
+        super().__init__(a_type, *args, **kwargs)
+
+    def resolve(self, *args, **kwargs):
+        value = super().resolve(*args, **kwargs)
+        if value is not None:
+            return str(value)
 
 
 class GrapQLForm(forms.Form):
@@ -106,7 +132,7 @@ class GrapQLForm(forms.Form):
 
 class GraphQLView(View):
 
-    encoder_class = CarbonJSONEncoder
+    encoder_class = DjangoJSONEncoder
     nodes = tuple()
 
     @classmethod
@@ -158,11 +184,15 @@ class GraphQLView(View):
             form.is_valid()
             query = form.cleaned_data['query']
 
-        root_node = RootNode(self.nodes, ctx=request)
+        root_node = neonode.RootNode(self.nodes, ctx=request)
         try:
-            data = root_node.query(parse(query))
+            with atomic():
+                data = root_node.query(parse(query))
         except Carbon14Error as e:
             data = {'details': str(e)}
+            status = 400
+        except ValidationError as e:
+            data = dict(e)
             status = 400
         else:
             status = 200

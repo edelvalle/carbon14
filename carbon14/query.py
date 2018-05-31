@@ -2,9 +2,9 @@ import json
 from functools import lru_cache
 
 try:
-    from .django import CarbonJSONEncoder
+    from django.core.serializers.json import DjangoJSONEncoder
 except ImportError:
-    CarbonJSONEncoder = json.JSONEncoder
+    DjangoJSONEncoder = None
 
 
 @lru_cache()
@@ -13,7 +13,7 @@ def q(_field, *fields, **kwargs):
 
     if kwargs:
         kwargs = ', '.join(
-            f'{k}: {json.dumps(v, cls=CarbonJSONEncoder)}'
+            f'{k}: {json.dumps(v, cls=DjangoJSONEncoder)}'
             for k, v in kwargs.items()
         )
         query += f'({kwargs})'

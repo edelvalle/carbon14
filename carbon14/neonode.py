@@ -9,15 +9,8 @@ class RootNode:
 
     def __init__(self, nodes, ctx=None):
         nodes = [import_string(n) if isinstance(n, str) else n for n in nodes]
-        self.nodes = self.validate_nodes({c.Meta.name: c for c in nodes})
+        self.nodes = {c.Meta.name: c for c in nodes}
         self.ctx = ctx
-
-    def validate_nodes(self, nodes):
-        for node in nodes.values():
-            for nested_field, node_name in node.Meta.nested_fields.items():
-                if node_name not in nodes:
-                    raise MissingNode(node_name)
-        return nodes
 
     def query(self, query):
         """
@@ -29,7 +22,7 @@ class RootNode:
         return results
 
     def solve(self, results, field, **data):
-        node = self.nodes.get(field)
+        node = Mutations if field == 'mutations' else self.nodes.get(field)
         if not node or not node.Meta.exposed:
             raise MissingNode(field)
         return node(self.ctx, self.nodes).query(results, **data)
@@ -37,12 +30,31 @@ class RootNode:
 
 class Node:
 
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        # Collect the registered fields
+        public_fields = [f for f in dir(cls) if not f.startswith('_')]
+        cls._fields_names = tuple(
+            field_name
+            for field_name in public_fields
+            if isinstance(getattr(cls, field_name), Field)
+        )
+        # Tell the fields their names
+        for field_name in cls._fields_names:
+            field = getattr(cls, field_name)
+            field.name = field_name
+
+        # Collect mutations
+        cls._mutations = {
+            field_name: getattr(cls, field_name).__annotations__['return']
+            for field_name in public_fields
+            if getattr(getattr(cls, field_name), 'is_mutation', False)
+        }
+
     class Meta:
         exposed = True
         name = ''
         source = ()
-        fields = ('id',)
-        nested_fields = {}
 
     def __init__(self, ctx, nodes):
         self.ctx = ctx
@@ -58,7 +70,7 @@ class Node:
         fields_to_solve = {
             f: v
             for f, v in fields.items()
-            if f in self.Meta.fields or f in self.Meta.nested_fields
+            if f in self._fields_names
         }
         missing_fields = set(fields) - set(fields_to_solve)
         if missing_fields:
@@ -92,22 +104,93 @@ class Node:
         return item.id
 
     def resolve(self, item, field_name, kwargs):
-        resolver = getattr(self, f'resolve_{field_name}', None)
+        return getattr(self, field_name).resolve(self, item, kwargs)
+
+    def get_node_for(self, field_name):
+        field = getattr(self, field_name)
+        OtherNode = self.nodes.get(field.type)
+        if OtherNode:
+            return OtherNode(self.ctx, self.nodes)
+
+    def is_collection(self, value):
+        return isinstance(value, (list, tuple, set))
+
+
+class Field:
+    def __init__(self, a_type: type, prefetch=None):
+        self.name = None
+        self.type = a_type
+        if isinstance(prefetch, str):
+            prefetch = (prefetch,)
+        self.prefetch = prefetch
+
+    def resolve(self, node: Node, instance, kwargs):
+        resolver = getattr(node, f'resolve_{self.name}', None)
         if resolver:
-            value = partial(resolver, item)
+            value = partial(resolver, instance)
         else:
-            value = getattr(item, field_name, None)
+            value = getattr(instance, self.name, None)
 
         if callable(value):
             value = value(**kwargs)
 
         return value
 
-    def get_node_for(self, field_name):
-        node_name = self.Meta.nested_fields.get(field_name)
-        if node_name:
-            OtherNode = self.nodes[node_name]
-            return OtherNode(self.ctx, self.nodes)
 
-    def is_collection(self, value):
-        return isinstance(value, (list, tuple, set))
+class Mutations(Node):
+    class Meta(Node.Meta):
+        exposed = True
+        name = 'mutations'
+
+    def __init__(self, ctx, nodes):
+        super().__init__(ctx, nodes)
+        self._fields_names = self.nodes.keys()
+
+    def query(self, results, kwargs, fields, source=None):
+        for node_name, node_mutations in fields.items():
+            node_results = {}
+            node = self.nodes.get(node_name)
+            if node:
+                node_mutations = node_mutations.get('fields', {})
+                node_results = dict(self.solve_mutations(node, node_mutations))
+            else:
+                raise MissingFields(self.Meta.name, node_name)
+            results[self.Meta.name][node_name] = node_results
+        return results
+
+    def solve_mutations(self, node, node_mutations):
+        node = node(self.ctx, self.nodes)
+        for mutation_name, data in node_mutations.items():
+            return_type = node._mutations.get(mutation_name)
+            if return_type:
+                kwargs = data.get('kwargs', {})
+                value = getattr(node, mutation_name)(**kwargs)
+                ReturnNode = self.nodes.get(return_type)
+                if ReturnNode:
+                    return_node = ReturnNode(self.ctx, self.nodes)
+                    fields = data.get('fields', {})
+                    value = self.serialize(value, return_node, fields)
+                yield mutation_name, value
+            else:
+                raise MissingFields(
+                    f'mutations.{node.Meta.Name}', mutation_name
+                )
+
+    def serialize(self, value, node, fields):
+        if value is not None and node:
+            results = defaultdict(lambda: defaultdict(dict))
+            if node.is_collection(value):
+                value = node.query(
+                    results, source=value, kwargs={}, fields=fields
+                )
+                value = [v['id'] for v in value]
+            else:
+                value = node.serialize(results, value, fields)
+                value = value['id']
+            return results
+        return value
+
+
+def mutation(f):
+    f.is_mutation = True
+    return f
