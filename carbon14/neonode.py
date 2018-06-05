@@ -173,7 +173,7 @@ class Mutations(Node):
                 yield mutation_name, value
             else:
                 raise MissingFields(
-                    f'mutations.{node.Meta.Name}', mutation_name
+                    f'mutations.{node.Meta.name}', mutation_name
                 )
 
     def serialize(self, value, node, fields):
