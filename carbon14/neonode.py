@@ -46,7 +46,7 @@ class Node:
 
         # Collect mutations
         cls._mutations = {
-            field_name: getattr(cls, field_name).__annotations__['return']
+            field_name: getattr(cls, field_name).return_type
             for field_name in public_fields
             if getattr(getattr(cls, field_name), 'is_mutation', False)
         }
@@ -191,6 +191,11 @@ class Mutations(Node):
         return value
 
 
-def mutation(f):
-    f.is_mutation = True
-    return f
+def mutation(return_type):
+
+    def wrapper(f):
+        f.return_type = return_type
+        f.is_mutation = True
+        return f
+
+    return wrapper
