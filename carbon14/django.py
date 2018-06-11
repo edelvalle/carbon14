@@ -24,7 +24,6 @@ class Node(neonode.Node):
         is_public = False
 
     def query(self, results, kwargs, fields, source=None):
-        self.check_if_requesting_missing_fields(fields)
         if source is None:
             source = self.query_optimization(self.Meta.source, fields)
             source = self.filter(source, **kwargs)
@@ -40,13 +39,13 @@ class Node(neonode.Node):
         return [self.serialize(results, item, fields) for item in source]
 
     def query_optimization(self, source: QuerySet, fields, prefix=''):
+        self.check_if_requesting_missing_fields(fields)
         for field_name, data in fields.items():
 
             # Explicit prefetch
             fields_to_prefetch = getattr(self, field_name).prefetch
 
-            for f in fields_to_prefetch  or ():
-                print(self, 'pre', prefix + f)
+            for f in fields_to_prefetch or ():
                 source = source.prefetch_related(prefix + f)
 
             # Related pre-fetch
