@@ -119,10 +119,8 @@ class StringField(neonode.Field):
     def __init__(self, a_type=str, *args, **kwargs):
         super().__init__(a_type, *args, **kwargs)
 
-    def resolve(self, *args, **kwargs):
-        value = super().resolve(*args, **kwargs)
-        if value is not None:
-            return str(value)
+    def resolve(self, node, instance, *args, **kwargs):
+        return str(instance)
 
 
 class GrapQLForm(forms.Form):
