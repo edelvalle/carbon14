@@ -1,4 +1,5 @@
 from pytest import raises
+from pprint import pprint
 from unittest import TestCase
 
 from carbon14 import graphql
@@ -57,6 +58,7 @@ class TestQueries(TestCase):
                 name = 'books'
                 source = BOOKS
 
+            id = Field(int)
             title = Field(str)
             n_pages = Field(int)
             author = Field('authors')
@@ -78,13 +80,14 @@ class TestQueries(TestCase):
                 name = 'authors'
                 source = AUTHORS
 
+            id = Field(int)
             name = Field(str)
             is_alive = Field(bool)
             books = Field('books')
             kill = Field('authors')
 
-            @mutation
-            def new(self, name, is_alive, books) -> 'authors':
+            @mutation('authors')
+            def new(self, name, is_alive, books):
                 return Author('ID', name, is_alive, books)
 
         self.root_node = RootNode([Books, Authors])
@@ -98,81 +101,112 @@ class TestQueries(TestCase):
     def test_simple_query(self):
         data = self.query("""
             authors {
+                id
                 name
             }
         """)
+        pprint(data)
         assert data == {
-            'authors': {
-                22: {'id': 22, 'name': 'John'},
-                32: {'id': 32, 'name': 'Grace'},
-            },
+            'authors': [
+                {'id': 32, 'name': 'Grace'},
+                {'id': 22, 'name': 'John'},
+            ],
         }
 
     def test_subquery(self):
         data = self.query("""
             authors {
+                id
                 books {
                     title
                 }
             }
         """)
+        pprint(data)
         assert data == {
-            'authors': {
-                22: {'books': [3, 4], 'id': 22},
-                32: {'books': [1, 2], 'id': 32},
-            },
-            'books': {
-                1: {'id': 1, 'title': 'El becheló'},
-                2: {'id': 2, 'title': 'Dog and Cat'},
-                3: {'id': 3, 'title': 'El bocaza'},
-                4: {'id': 4, 'title': 'Dungeon'},
-            },
+            'authors': [
+                {
+                    'id': 32,
+                    'books': [
+                        {'title': 'El becheló'},
+                        {'title': 'Dog and Cat'},
+                    ]
+                },
+                {
+                    'id': 22,
+                    'books': [
+                        {'title': 'El bocaza'},
+                        {'title': 'Dungeon'},
+                    ]
+                },
+            ]
         }
 
     def test_with_parameters_in_subquery(self):
         data = self.query("""
             authors {
+                id
                 books (title_contains: "El") {
+                    id
                     title
                 }
             }
         """)
         assert data == {
-            'authors': {
-                22: {'books': [3], 'id': 22},
-                32: {'books': [1], 'id': 32},
-            },
-            'books': {
-                1: {'id': 1, 'title': 'El becheló'},
-                3: {'id': 3, 'title': 'El bocaza'},
-            },
+            'authors': [
+                {
+                    'id': 32,
+                    'books': [
+                        {'id': 1, 'title': 'El becheló'},
+                    ]
+                },
+                {
+                    'id': 22,
+                    'books': [
+                        {'id': 3, 'title': 'El bocaza'},
+                    ]
+                },
+            ]
         }
 
     def test_with_subquery_and_another_query_to_check_interpolation(self):
         data = self.query("""
             authors {
+                id
                 books (title_contains: "El") {
+                    id
                     title
                 }
             }
-            books { n_pages }
+            books { id n_pages }
         """)
         assert data == {
-            'authors': {
-                22: {'books': [3], 'id': 22},
-                32: {'books': [1], 'id': 32},
-            },
-            'books': {
-                1: {'id': 1, 'title': 'El becheló', 'n_pages': 100},
-                2: {'id': 2, 'n_pages': 200},
-                3: {'id': 3, 'title': 'El bocaza', 'n_pages': 300},
-                4: {'id': 4, 'n_pages': 400},
-            },
+            'authors': [
+                {
+                    'id': 32,
+                    'books': [
+                        {'id': 1, 'title': 'El becheló'},
+                    ]
+                },
+                {
+                    'id': 22,
+                    'books': [
+                        {'id': 3, 'title': 'El bocaza'},
+                    ]
+                },
+            ],
+            'books': [
+                {'id': 1, 'n_pages': 100},
+                {'id': 2, 'n_pages': 200},
+                {'id': 3, 'n_pages': 300},
+                {'id': 4, 'n_pages': 400},
+            ],
         }
 
     def test_inverse_subquery_with_parameters(self):
         data = self.query("""
             books (title_contains: "El") {
+                id
                 title
                 author {
                     name
@@ -180,51 +214,48 @@ class TestQueries(TestCase):
             }
         """)
         assert data == {
-            'books': {
-                1: {'id': 1, 'title': 'El becheló', 'author': 32},
-                3: {'id': 3, 'title': 'El bocaza', 'author': 22},
-            },
-            'authors': {
-                22: {'name': 'John', 'id': 22},
-                32: {'name': 'Grace', 'id': 32},
-            },
+            'books': [
+                {'id': 1, 'title': 'El becheló', 'author': {'name': 'Grace'}},
+                {'id': 3, 'title': 'El bocaza', 'author': {'name': 'John'}},
+            ]
         }, data
 
     def test_using_mutations(self):
         data = self.query("""
-            authors { kill { name is_alive } }
+            authors { id kill { name is_alive } }
         """)
+        pprint(data)
         assert data == {
-            'authors': {
-                22: {
-                    'id': 22,
-                    'kill': 22,
-                    'is_alive': False,
-                    'name': 'John',
-                },
-                32: {
+            'authors': [
+                {
                     'id': 32,
-                    'kill': 32,
-                    'is_alive': False,
-                    'name': 'Grace',
+                    'kill': {
+                        'name': 'Grace',
+                        'is_alive': False,
+                    }
                 },
-            },
+                {
+                    'id': 22,
+                    'kill': {
+                        'name': 'John',
+                        'is_alive': False,
+                    }
+                },
+            ]
         }
 
         data = self.query("authors { is_alive name }")
         assert data == {
-            'authors': {
-                22: {
-                    'id': 22,
-                    'is_alive': False,
-                    'name': 'John',
-                },
-                32: {
-                    'id': 32,
+            'authors': [
+                {
                     'is_alive': False,
                     'name': 'Grace',
                 },
-            },
+                {
+                    'is_alive': False,
+                    'name': 'John',
+                },
+            ]
         }
 
     def test_query_for_missing_collections(self):
@@ -243,25 +274,27 @@ class TestQueries(TestCase):
                 }
             """)
 
-    def test_mutation_creating_new_uthor(self):
+    def test_mutation_creating_new_author(self):
         data = self.query("""
             mutations {
                 authors {
                     new (name: "Ash", is_alive: false, books: null) {
+                        id
                         name
                         is_alive
                     }
                 }
             }
         """)
+        pprint(data)
         assert data == {
-            'mutations': {'authors': {'new': {
+            'mutations': {
                 'authors': {
-                    'ID': {
+                    'new': {
                         'id': 'ID',
                         'name': 'Ash',
                         'is_alive': False,
                     }
                 }
-            }}}
+            }
         }

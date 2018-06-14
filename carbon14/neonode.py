@@ -16,16 +16,16 @@ class RootNode:
         """
         query = {'book': {'kwargs': {}, 'fields': `query`}}
         """
-        results = defaultdict(lambda: defaultdict(dict))
-        for field, data in query.items():
-            self.solve(results, field, **data)
-        return results
+        return {
+            field: self.solve(field, **data)
+            for field, data in query.items()
+        }
 
-    def solve(self, results, field, **data):
+    def solve(self, field, **data):
         node = Mutations if field == 'mutations' else self.nodes.get(field)
         if not node or not node.Meta.exposed:
             raise MissingNode(field)
-        return node(self.ctx, self.nodes).query(results, **data)
+        return node(self.ctx, self.nodes).query(**data)
 
 
 class Node:
@@ -60,11 +60,11 @@ class Node:
         self.ctx = ctx
         self.nodes = nodes
 
-    def query(self, results, kwargs, fields, source=None):
+    def query(self, kwargs, fields, source=None):
         self.check_if_requesting_missing_fields(fields)
         source = self.Meta.source if source is None else source
         items = self.filter(_source=source, **kwargs)
-        return [self.serialize(results, item, fields) for item in items]
+        return [self.serialize(item, fields) for item in items]
 
     def check_if_requesting_missing_fields(self, fields):
         fields_to_solve = {
@@ -79,8 +79,8 @@ class Node:
     def filter(self, _source, **kwargs):
         return _source
 
-    def serialize(self, results, item, item_fields):
-        result = {'id': self.resolve_id(item)}
+    def serialize(self, item, item_fields):
+        result = {}
         for field_name, data in item_fields.items():
             kwargs = data.get('kwargs', {})
             fields = data.get('fields', {})
@@ -89,19 +89,12 @@ class Node:
             node = self.get_node_for(field_name)
             if value is not None and node:
                 if node.is_collection(value):
-                    value = node.query(results, source=value, **data)
-                    value = [v['id'] for v in value]
+                    value = node.query(source=value, **data)
                 else:
-                    value = node.serialize(results, value, fields)
-                    value = value['id']
+                    value = node.serialize(value, fields)
 
             result[field_name] = value
-
-        results[self.Meta.name][result['id']].update(result)
         return result
-
-    def resolve_id(self, item):
-        return item.id
 
     def resolve(self, item, field_name, kwargs):
         return getattr(self, field_name).resolve(self, item, kwargs)
@@ -146,7 +139,8 @@ class Mutations(Node):
         super().__init__(ctx, nodes)
         self._fields_names = self.nodes.keys()
 
-    def query(self, results, kwargs, fields, source=None):
+    def query(self, kwargs, fields, source=None):
+        results = {}
         for node_name, node_mutations in fields.items():
             node_results = {}
             node = self.nodes.get(node_name)
@@ -155,7 +149,7 @@ class Mutations(Node):
                 node_results = dict(self.solve_mutations(node, node_mutations))
             else:
                 raise MissingFields(self.Meta.name, node_name)
-            results[self.Meta.name][node_name] = node_results
+            results[node_name] = node_results
         return results
 
     def solve_mutations(self, node, node_mutations):
@@ -178,16 +172,11 @@ class Mutations(Node):
 
     def serialize(self, value, node, fields):
         if value is not None and node:
-            results = defaultdict(lambda: defaultdict(dict))
             if node.is_collection(value):
-                value = node.query(
-                    results, source=value, kwargs={}, fields=fields
-                )
-                value = [v['id'] for v in value]
+                value = node.query(source=value, kwargs={}, fields=fields)
             else:
-                value = node.serialize(results, value, fields)
-                value = value['id']
-            return results
+                value = node.serialize(value, fields)
+            return value
         return value
 
 
