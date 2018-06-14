@@ -12,13 +12,19 @@ def q(_field, *fields, **kwargs):
     query = _field
 
     if kwargs:
-        kwargs = ', '.join(
-            f'{k}: {json.dumps(v, cls=DjangoJSONEncoder)}'
-            for k, v in kwargs.items()
-        )
-        query += f'({kwargs})'
+        query += f' ({serializer_parameter(kwargs)})'
 
     if fields:
         query += ' { ' + ' '.join(fields) + ' } '
 
     return query
+
+
+def serializer_parameter(value):
+    if isinstance(value, dict):
+        return ', '.join(
+            f'{k}: {serializer_parameter(v)}'
+            for k, v in value.items()
+        )
+    else:
+        return json.dumps(value, cls=DjangoJSONEncoder)
