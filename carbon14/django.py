@@ -23,7 +23,7 @@ class Node(neonode.Node):
     class Meta(neonode.Node.Meta):
         is_public = False
 
-    def query(self, results, kwargs, fields, source=None):
+    def query(self, kwargs, fields, source=None):
         if source is None:
             source = self.query_optimization(self.Meta.source, fields)
             source = self.filter(source, **kwargs)
@@ -36,7 +36,7 @@ class Node(neonode.Node):
         if limit:
             source = source[:limit]
 
-        return [self.serialize(results, item, fields) for item in source]
+        return [self.serialize(item, fields) for item in source]
 
     def query_optimization(self, source: QuerySet, fields, prefix=''):
         self.check_if_requesting_missing_fields(fields)
