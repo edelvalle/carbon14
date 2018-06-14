@@ -81,9 +81,6 @@ class Node(neonode.Node):
     def is_collection(self, value):
         return isinstance(value, QuerySet) or super().is_collection(value)
 
-    def resolve_id(self, item):
-        return str(item.id)
-
 
 class Field(neonode.Field):
     def resolve(self, node: Node, instance, kwargs):
