@@ -12,7 +12,7 @@ def q(_field, *fields, **kwargs):
     query = _field
 
     if kwargs:
-        query += f' ({serializer_parameter(kwargs)})'
+        query += f' ({serializer_parameter(kwargs).strip("{}")})'
 
     if fields:
         query += ' { ' + ' '.join(fields) + ' } '
