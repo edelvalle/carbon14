@@ -1,3 +1,4 @@
+from types import GeneratorType
 from pytest import raises
 from pprint import pprint
 from unittest import TestCase
@@ -93,7 +94,15 @@ class TestQueries(TestCase):
         self.root_node = RootNode([Books, Authors])
 
     def query(self, query):
-        return self.root_node.query(graphql.parse(query))
+        return self.ungenerator(self.root_node.query(graphql.parse(query)))
+
+    def ungenerator(self, something):
+        if isinstance(something, (list, tuple, GeneratorType)):
+            return [self.ungenerator(i) for i in something]
+        elif isinstance(something, dict):
+            return {k: self.ungenerator(v) for k, v in something.items()}
+        else:
+            return something
 
     def test_empty_query(self):
         assert self.query('') == {}

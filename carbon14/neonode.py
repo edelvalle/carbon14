@@ -1,4 +1,3 @@
-from collections import defaultdict
 from functools import partial
 
 from .errors import MissingNode, MissingFields
@@ -64,7 +63,7 @@ class Node:
         self.check_if_requesting_missing_fields(fields)
         source = self.Meta.source if source is None else source
         items = self.filter(_source=source, **kwargs)
-        return [self.serialize(item, fields) for item in items]
+        return (self.serialize(item, fields) for item in items)
 
     def check_if_requesting_missing_fields(self, fields):
         fields_to_solve = {
