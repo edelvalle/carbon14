@@ -45,20 +45,25 @@ class ModelCollection(Collection):
     _auth_required = True
 
     def _resolve(
-            self,
-            level,
-            instances,
-            ctx,
-            ids=None,
-            limit=None,
-            offset=0,
-            **kwargs
+        self,
+        level,
+        instances,
+        ctx,
+        ids=None,
+        limit=None,
+        offset=0,
+        sort_order='',
+        **kwargs
     ):
         if self._auth_required and not ctx.user.is_authenticated:
             instances = instances.none()
         else:
             if ids is not None:
                 instances = instances.filter(id__in=ids)
+
+        if sort_order:
+            sort_order_list = sort_order.split(',')
+            instances = instances.order_by(*sort_order_list)
 
         instances = instances.all()[offset:]
 
