@@ -4,7 +4,7 @@ from uuid import UUID
 from functools import partial
 
 from django import forms
-from django.db.models import QuerySet, Prefetch
+from django.db.models import QuerySet, Prefetch, Model
 from django.db.transaction import atomic
 from django.http import HttpResponse, JsonResponse
 from django.views.generic import View
@@ -124,9 +124,18 @@ class GrapQLForm(forms.Form):
     query = forms.CharField(widget=forms.Textarea)
 
 
+class CarbonJSONEncoder(DjangoJSONEncoder):
+
+    def default(self, o):
+        if isinstance(o, Model):
+            return o.pk
+        else:
+            return super().default(o)
+
+
 class GraphQLView(View):
 
-    encoder_class = DjangoJSONEncoder
+    encoder_class = CarbonJSONEncoder
     nodes = tuple()
 
     @classmethod
