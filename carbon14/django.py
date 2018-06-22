@@ -62,9 +62,6 @@ class ModelCollection(Collection):
         (string) Comma-separated list of Django-like sort instructions.
         A sort instruction consists of a model field name and optionally a
         minus ('-') sign in front to indicate descending sort direction.
-
-        :param kwargs:
-        :return:
         """
 
         if self._auth_required and not ctx.user.is_authenticated:
