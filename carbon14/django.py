@@ -3,6 +3,8 @@ from uuid import UUID
 
 from functools import partial
 
+from schema import Schema, SchemaMissingKeyError
+
 from django import forms
 from django.db.models import QuerySet, Prefetch, Model
 from django.db.transaction import atomic
@@ -86,6 +88,7 @@ class Field(neonode.Field):
     def resolve(self, node: Node, instance, kwargs):
         resolver = getattr(node, f'resolve_{self.name}', None)
         if resolver:
+            kwargs = self.validate(resolver, kwargs)
             value = partial(resolver, instance)
         else:
             value = getattr(instance, self.name, None)
@@ -100,6 +103,17 @@ class Field(neonode.Field):
             value = str(value)
 
         return value
+
+    def validate(self, resolver, kwargs):
+        schema = Schema(resolver.__annotations__, ignore_extra_keys=True)
+
+        try:
+            kwargs = dict(kwargs, **schema.validate(kwargs))
+        except SchemaMissingKeyError as error:
+            keys = str(error)[len('Missing keys: '):].split(', ')
+            keys = [k.strip("'") for k in keys]
+            error.autos
+        return kwargs
 
 
 class FileField(neonode.Field):
