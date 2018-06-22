@@ -1,5 +1,7 @@
 from functools import partial
 
+from schema import Schema
+
 from .errors import MissingNode, MissingFields
 from .utils import import_string
 
@@ -119,6 +121,8 @@ class Field:
     def resolve(self, node: Node, instance, kwargs):
         resolver = getattr(node, f'resolve_{self.name}', None)
         if resolver:
+            schema = Schema(resolver.__annotations__, ignore_extra_keys=True)
+            kwargs = dict(kwargs, **schema.validate(kwargs))
             value = partial(resolver, instance)
         else:
             value = getattr(instance, self.name, None)

@@ -3,6 +3,8 @@ from pytest import raises
 from pprint import pprint
 from unittest import TestCase
 
+from schema import SchemaError
+
 from carbon14 import graphql
 from carbon14.neonode import RootNode, Node, Field, mutation
 from carbon14.errors import MissingNode, MissingFields
@@ -62,7 +64,6 @@ class TestQueries(TestCase):
             id = Field(int)
             title = Field(str)
             n_pages = Field(int)
-            author = Field('authors')
 
             def filter(self, _source, title_contains='', **kwargs):
                 return [
@@ -71,10 +72,18 @@ class TestQueries(TestCase):
                     if title_contains in book.title
                 ]
 
+            author = Field('authors')
+
             def resolve_author(self, book, **kwargs):
                 for author in AUTHORS:
                     if author.id == book.author_id:
                         return author
+
+            change_title = Field('books')
+
+            def resolve_change_title(self, instance, title: str):
+                instance.title = title
+                return instance
 
         class Authors(Node):
             class Meta(Node.Meta):
@@ -307,3 +316,32 @@ class TestQueries(TestCase):
                 }
             }
         }
+
+    def test_schema_validation(self):
+        data = self.query("""
+            books {
+                change_title (title: "AA") { id title }
+            }
+        """)
+        assert data == {
+            'books': [
+                {'change_title': {'id': 1, 'title': 'AA'}},
+                {'change_title': {'id': 2, 'title': 'AA'}},
+                {'change_title': {'id': 3, 'title': 'AA'}},
+                {'change_title': {'id': 4, 'title': 'AA'}}
+            ]
+        }
+
+    def test_schema_validation_with_bad_input(self):
+        try:
+            self.query("""
+                books {
+                    change_title (title: 1) { id title }
+                }
+            """)
+        except SchemaError as error:
+            assert error.autos == [
+                "Key 'title' error:", "1 should be instance of 'str'"
+            ]
+        else:
+            assert False
