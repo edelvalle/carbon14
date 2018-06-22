@@ -52,9 +52,21 @@ class ModelCollection(Collection):
         ids=None,
         limit=None,
         offset=0,
-        sort_order='',
+        sort_order=None,
         **kwargs
     ):
+        """
+        :param limit: Determines the maximum number of results for pagination.
+        :param offset: Determines the start index of the results for pagination.
+        :param sort_order:
+        (string) Comma-separated list of Django-like sort instructions.
+        A sort instruction consists of a model field name and optionally a
+        minus ('-') sign in front to indicate descending sort direction.
+
+        :param kwargs:
+        :return:
+        """
+
         if self._auth_required and not ctx.user.is_authenticated:
             instances = instances.none()
         else:
