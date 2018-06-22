@@ -3,11 +3,10 @@ from pytest import raises
 from pprint import pprint
 from unittest import TestCase
 
-from schema import SchemaError
-
 from carbon14 import graphql
 from carbon14.neonode import RootNode, Node, Field, mutation
 from carbon14.errors import MissingNode, MissingFields
+from carbon14.schema import ValidationError
 
 # Models
 
@@ -339,9 +338,9 @@ class TestQueries(TestCase):
                     change_title (title: 1) { id title }
                 }
             """)
-        except SchemaError as error:
-            assert error.autos == [
-                "Key 'title' error:", "1 should be instance of 'str'"
-            ]
+        except ValidationError as error:
+            assert error.errors == {
+                'title': ["1 is not a valid 'str'"]
+            }
         else:
             assert False

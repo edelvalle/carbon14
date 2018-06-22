@@ -3,8 +3,6 @@ from uuid import UUID
 
 from functools import partial
 
-from schema import Schema, SchemaMissingKeyError
-
 from django import forms
 from django.db.models import QuerySet, Prefetch, Model
 from django.db.transaction import atomic
@@ -15,9 +13,11 @@ from django.core.exceptions import ValidationError
 from django.core.serializers.json import DjangoJSONEncoder
 from django.views.decorators.csrf import csrf_exempt
 
+
 from .graphql import parse
 from .errors import Carbon14Error
 from . import neonode
+from . import schema
 
 
 class Node(neonode.Node):
@@ -105,14 +105,11 @@ class Field(neonode.Field):
         return value
 
     def validate(self, resolver, kwargs):
-        schema = Schema(resolver.__annotations__, ignore_extra_keys=True)
-
+        s = schema.Schema(resolver.__annotations__)
         try:
-            kwargs = dict(kwargs, **schema.validate(kwargs))
-        except SchemaMissingKeyError as error:
-            keys = str(error)[len('Missing keys: '):].split(', ')
-            keys = [k.strip("'") for k in keys]
-            error.autos
+            kwargs = dict(kwargs, **s.validate(kwargs))
+        except schema.ValidationError as error:
+            raise ValidationError(error.errors) from error
         return kwargs
 
 
