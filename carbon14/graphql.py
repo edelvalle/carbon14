@@ -162,13 +162,17 @@ class Parser:
         return the_list
 
     def consume_dict(self):
-        """ DICT = { [NAME: VALUE[,]]* } """
+        """ DICT = { [(STRING|NAME): VALUE[,]]* } """
         the_dict = {}
         self.consume('BRACKET_OPEN')
         while self.current.kind != 'BRACKET_CLOSE':
-            name = self.consume('NAME')
+            key = self.consume(['STRING', 'NAME'])
+            if key.kind == 'STRING':
+                key = key.value.strip('"')
+            else:
+                key = key.value
             self.consume('COLON')
-            the_dict[name.value] = self.consume_value()
+            the_dict[key] = self.consume_value()
             comma = self.consume('COMMA', null=True)
             if not comma:
                 break
