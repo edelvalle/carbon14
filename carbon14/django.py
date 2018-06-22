@@ -45,20 +45,34 @@ class ModelCollection(Collection):
     _auth_required = True
 
     def _resolve(
-            self,
-            level,
-            instances,
-            ctx,
-            ids=None,
-            limit=None,
-            offset=0,
-            **kwargs
+        self,
+        level,
+        instances,
+        ctx,
+        ids=None,
+        limit=None,
+        offset=0,
+        sort_order=None,
+        **kwargs
     ):
+        """
+        :param limit: Determines the maximum number of results for pagination.
+        :param offset: Determines the start index of the results for pagination.
+        :param sort_order:
+        (string) Comma-separated list of Django-like sort instructions.
+        A sort instruction consists of a model field name and optionally a
+        minus ('-') sign in front to indicate descending sort direction.
+        """
+
         if self._auth_required and not ctx.user.is_authenticated:
             instances = instances.none()
         else:
             if ids is not None:
                 instances = instances.filter(id__in=ids)
+
+        if sort_order:
+            sort_order_list = sort_order.split(',')
+            instances = instances.order_by(*sort_order_list)
 
         instances = instances.all()[offset:]
 
