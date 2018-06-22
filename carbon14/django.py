@@ -106,10 +106,7 @@ class Field(neonode.Field):
 
     def validate(self, resolver, kwargs):
         s = schema.Schema(resolver.__annotations__)
-        try:
-            kwargs = dict(kwargs, **s.validate(kwargs))
-        except schema.ValidationError as error:
-            raise ValidationError(error.errors) from error
+        kwargs = dict(kwargs, **s.validate(kwargs))
         return kwargs
 
 
@@ -207,6 +204,9 @@ class GraphQLView(View):
             status = 400
         except ValidationError as e:
             data = dict(e)
+            status = 400
+        except schema.ValidationError as e:
+            data = e.errors
             status = 400
         else:
             status = 200

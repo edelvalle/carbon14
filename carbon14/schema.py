@@ -1,6 +1,6 @@
-
+from functools import wraps
 from xoutil.names import nameof
-from xoutil.decorator import memoized_property
+from xoutil.objects import memoized_property
 
 
 class ValidationError(Exception):
@@ -23,9 +23,35 @@ def flatten(iterable):
     return results
 
 
+def identity(x):
+    return x
+
+
+def use_wrapper(f):
+
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        except Exception as e:
+            raise ValidationError(str(e)) from e
+
+    return wrapper
+
+
 class BaseSchema:
-    def validate(self, *args, **kwargs):
-        raise NotImplementedError()
+    def __init__(self, *args, **kwargs):
+        if self.use:
+            self.use = use_wrapper(self.use)
+        else:
+            self.use = identity
+
+    def validate(self, data):
+        return self.use(data)
+
+    @memoized_property
+    def use_name(self):
+        return nameof(self.use, inner=True)
 
 
 class Schema(BaseSchema):
@@ -59,6 +85,7 @@ class Schema(BaseSchema):
 class Callable(BaseSchema):
     def __init__(self, validator, error):
         self.validator = validator
+        self.validator_name = nameof(validator, inner=True)
         self.error = error or "This value is incorrect"
 
     def validate(self, data):
@@ -66,6 +93,9 @@ class Callable(BaseSchema):
             return data
         else:
             raise ValidationError(self.error.format(x=data))
+
+    def __repr__(self):
+        return 'Check %r' % (self.validator_name,)
 
 
 class Type(BaseSchema):
@@ -95,9 +125,20 @@ class List(BaseSchema):
         if not isinstance(data, (list, tuple, set)):
             raise ValidationError('%r is not a valid List' % (data,))
         results = []
+        errors = []
         for item in data:
-            results.append(self.schema.validate(item))
-        return results
+            try:
+                item_value = self.schema.validate(item)
+            except ValidationError as e:
+                errors.append(e.errors)
+            else:
+                errors.append(None)
+                results.append(item_value)
+
+        if any(errors):
+            raise ValidationError(errors)
+        else:
+            return results
 
     def __repr__(self):
         return 'List of %r' % (self.schema)
@@ -134,20 +175,22 @@ class Dict(BaseSchema):
 
 
 class And(BaseSchema):
-    def __init__(self, *schemas):
+    def __init__(self, *schemas, **kwargs):
+        self.use = kwargs.get('use')
         self.schemas = []
         for schema in schemas:
             if not isinstance(schema, BaseSchema):
                 schema = Schema(schema)
             self.schemas.append(schema)
+        super().__init__()
 
     def validate(self, data):
         for schema in self.schemas:
             data = schema.validate(data)
-        return data
+        return super().validate(data)
 
     def __repr__(self):
-        return 'And %r' % (self.schemas,)
+        return 'And %r as %r' % (self.schemas, self.use_name)
 
 
 class Or(And):
@@ -163,18 +206,29 @@ class Or(And):
         if errors:
             raise ValidationError(errors)
         else:
-            return data
+            return super().validate(data)
 
     def __repr__(self):
-        return 'Or %r' % (self.schemas,)
+        return 'Or %r as %r' % (self.schemas, self.use_name)
 
 
 class Optional(BaseSchema):
-    def __init__(self, schema):
-        self.schema = Or(type(None), schema)
+    def __init__(self, schema=None, use=identity):
+        self.use = use
+        if schema and not isinstance(schema, BaseSchema):
+            schema = Schema(schema)
+        self.schema = schema
+        super().__init__()
 
     def validate(self, data):
-        return self.schema.validate(data)
+        if data is None:
+            return None
+        elif self.schema:
+            data = self.schema.validate(data)
+        return super().validate(data)
 
     def __repr__(self):
-        return 'Optional %r' % (self.schema.schemas[1])
+        if self.schema:
+            return 'Optional %r as %r' % (self.schema, self.use_name)
+        else:
+            return 'Optional as %r' % (self.use_name,)

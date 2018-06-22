@@ -110,10 +110,7 @@ def test_optional():
     try:
         s.validate('str')
     except ValidationError as e:
-        assert e.errors == [
-            "'str' is not a valid 'NoneType'",
-            "'str' is not a valid 'int'"
-        ]
+        assert e.errors == ["'str' is not a valid 'int'"]
     else:
         assert False
     return s
@@ -128,10 +125,7 @@ def test_optional_key_in_dictionary():
         assert s.validate({'a': 1, 'b': 1}) == {'a': 1, 'b': 'str'}
     except ValidationError as e:
         assert e.errors == {
-            'b': [
-                "1 is not a valid 'NoneType'",
-                "1 is not a valid 'str'"
-            ]
+            'b': ["1 is not a valid 'str'"]
         }
 
     return s
