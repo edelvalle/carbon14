@@ -83,6 +83,26 @@ class Node(neonode.Node):
     def is_collection(self, value):
         return isinstance(value, QuerySet) or super().is_collection(value)
 
+    def save_related_field(self, instance, name, items):
+        errors = []
+        related_field = getattr(instance, name)
+        for item in items:
+            id = item.pop('id')
+            new_item, created = related_field.update_or_create(
+                id=id,
+                defaults=item,
+            )
+            try:
+                new_item.full_clean()
+                yield new_item
+            except ValidationError as e:
+                errors.append(dict(e))
+            else:
+                errors.append(None)
+
+        if any(errors):
+            raise schema.ValidationError({name: errors})
+
 
 class Field(neonode.Field):
     def resolve(self, node: Node, instance, kwargs):
