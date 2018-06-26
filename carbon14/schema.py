@@ -232,3 +232,6 @@ class Optional(BaseSchema):
             return 'Optional %r as %r' % (self.schema, self.use_name)
         else:
             return 'Optional as %r' % (self.use_name,)
+
+
+Number = Or(int, float)
