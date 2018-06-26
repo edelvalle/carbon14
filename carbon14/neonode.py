@@ -88,13 +88,23 @@ class Node:
             value = self.resolve(item, field_name, kwargs)
             node = self.get_node_for(field_name)
             if value is not None and node:
-                if node.is_collection(value):
-                    value = node.query(source=value, **data)
-                else:
-                    value = node.serialize(value, fields)
+                value = self.serialize_related_field(value, node, fields, data)
 
             result[field_name] = value
         return result
+
+    def serialize_related_field(self, value, node, fields, data):
+        if fields:
+            if node.is_collection(value):
+                value = node.query(source=value, **data)
+            else:
+                value = node.serialize(value, fields)
+        else:
+            if node.is_collection(value):
+                value = [v.id for v in value]
+            else:
+                value = value.id
+        return value
 
     def resolve(self, item, field_name, kwargs):
         return getattr(self, field_name).resolve(self, item, kwargs)
