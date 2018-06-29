@@ -1,5 +1,7 @@
 from functools import partial
 
+from xoutil.objects import get_first_of
+
 from .schema import Schema
 from .errors import MissingNode, MissingFields
 from .utils import import_string
@@ -134,7 +136,7 @@ class Field:
             kwargs = dict(kwargs, **schema.validate(kwargs))
             value = partial(resolver, instance)
         else:
-            value = getattr(instance, self.name, None)
+            value = get_first_of(instance, self.name)
 
         if callable(value):
             value = value(**kwargs)
