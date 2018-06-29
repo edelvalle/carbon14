@@ -2,6 +2,9 @@ import json
 from uuid import UUID
 
 from functools import partial
+from typing import Generator
+
+from xoutil.objects import get_first_of
 
 from django import forms
 from django.db.models import QuerySet, Prefetch, Model
@@ -128,7 +131,7 @@ class Field(neonode.Field):
             kwargs = self.validate(resolver, kwargs)
             value = partial(resolver, instance)
         else:
-            value = getattr(instance, self.name, None)
+            value = get_first_of(instance, self.name)
 
         all_values = getattr(value, 'all', None)
         if all_values:
@@ -174,6 +177,8 @@ class CarbonJSONEncoder(DjangoJSONEncoder):
     def default(self, o):
         if isinstance(o, Model):
             return o.pk
+        elif isinstance(o, Generator):
+            return list(o)
         else:
             return super().default(o)
 
