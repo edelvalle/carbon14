@@ -177,10 +177,19 @@ class CarbonJSONEncoder(DjangoJSONEncoder):
     def default(self, o):
         if isinstance(o, Model):
             return o.pk
-        elif isinstance(o, Generator):
+
+        if isinstance(o, Generator):
             return list(o)
+
+        try:
+            from numpy import ndarray
+        except ImportError:
+            pass
         else:
-            return super().default(o)
+            if isinstance(o, ndarray):
+                return list(o)
+
+        return super().default(o)
 
 
 class GraphQLView(View):
