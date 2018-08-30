@@ -53,6 +53,7 @@ class ModelCollection(Collection):
         limit=None,
         offset=0,
         sort_order=None,
+        use_permissions=True,
         **kwargs
     ):
         """
@@ -75,6 +76,9 @@ class ModelCollection(Collection):
             instances = instances.order_by(*sort_order_list)
 
         instances = instances.all()[offset:]
+
+        if use_permissions:
+            instances = instances.has_permission(ctx.user)
 
         if limit:
             instances = instances[:limit]
