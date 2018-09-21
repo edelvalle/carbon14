@@ -126,7 +126,7 @@ class Collection(metaclass=Node):
                     **dict(query['parameters'], ctx=ctx)
                 )
                 for child, query in children.items()
-                if self._check_field_level_access_policy()
+                if self._check_field_level_access_policy(child)
             }
             for instance in instances
         ]
