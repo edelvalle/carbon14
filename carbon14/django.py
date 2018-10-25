@@ -87,6 +87,8 @@ class Node(neonode.Node):
         return isinstance(value, QuerySet) or super().is_collection(value)
 
     def save_related_field(self, instance, name, items):
+        ids = filter(None, [item.get('id') for item in items])
+        getattr(instance, name).exclude(id__in=ids).delete()
         return self.collect_errors(
             self.set_related(instance, name),
             items,

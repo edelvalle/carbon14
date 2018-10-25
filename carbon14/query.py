@@ -1,5 +1,4 @@
 import json
-from functools import lru_cache
 
 try:
     from django.core.serializers.json import DjangoJSONEncoder
@@ -7,17 +6,36 @@ except ImportError:
     DjangoJSONEncoder = None
 
 
-@lru_cache()
-def q(_field, *fields, **kwargs):
-    query = _field
+class F:
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+        self.fields = {}
 
-    if kwargs:
-        query += f' ({serializer_parameter(kwargs).strip("{}")})'
+    def __call__(self, _children=(), **kwargs):
+        for child in _children:
+            self.fields[child] = None
+        self.fields.update(kwargs)
+        return self
 
-    if fields:
-        query += ' { ' + ' '.join(fields) + ' } '
+    def __repr__(self):
+        return self.serialize()
 
-    return query
+    def serialize(self, root_level=False):
+        q = []
+        if self.kwargs:
+            q.append(f'({serializer_parameter(self.kwargs)})')
+
+        if self.fields:
+            if not root_level:
+                q.append(' { ')
+            for f_name, field in self.fields.items():
+                q.append(f_name)
+                if field:
+                    q.append(str(field))
+            if not root_level:
+                q.append(' } ')
+
+        return ' '.join(q)
 
 
 def serializer_parameter(value):
@@ -26,5 +44,8 @@ def serializer_parameter(value):
             f'{k}: {serializer_parameter(v)}'
             for k, v in value.items()
         )
+    elif isinstance(value, F):
+        return str(value)
     else:
         return json.dumps(value, cls=DjangoJSONEncoder)
+
