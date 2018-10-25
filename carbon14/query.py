@@ -48,4 +48,3 @@ def serializer_parameter(value):
         return str(value)
     else:
         return json.dumps(value, cls=DjangoJSONEncoder)
-
