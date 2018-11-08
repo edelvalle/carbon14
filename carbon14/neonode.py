@@ -1,10 +1,8 @@
 from functools import partial
 
-from xoutil.objects import get_first_of
-
 from .schema import Schema
 from .errors import MissingNode, MissingFields
-from .utils import import_string
+from .utils import import_string, get_first_of
 
 
 class RootNode:

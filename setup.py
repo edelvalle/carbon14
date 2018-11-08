@@ -28,9 +28,6 @@ setup(
     author='Eddy Ernesto del Valle Pino',
     author_email='eddy@edelvalle.me',
     packages=find_packages(exclude=("tests",)),
-    install_requires=[
-        'xoutil>=2.0.5,<2.1',
-    ],
     tests_require=[
         'pytest',
         'pytest-cov',

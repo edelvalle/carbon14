@@ -23,3 +23,9 @@ def import_string(dotted_path):
             f'Module "{module_path}" does not define a "{class_name}" '
             f'attribute/class'
         ) from err
+
+
+def get_first_of(obj, name):
+    if isinstance(obj, dict):
+        return obj.get(name)
+    return getattr(obj, name, None)

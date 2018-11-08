@@ -1,6 +1,4 @@
 from functools import wraps
-from xoutil.names import nameof
-from xoutil.objects import memoized_property
 
 
 class ValidationError(Exception):
@@ -45,13 +43,10 @@ class BaseSchema:
             self.use = use_wrapper(self.use)
         else:
             self.use = identity
+        self.use_name = self.use.__name__
 
     def validate(self, data):
         return self.use(data)
-
-    @memoized_property
-    def use_name(self):
-        return nameof(self.use, inner=True)
 
 
 class Schema(BaseSchema):
@@ -61,9 +56,9 @@ class Schema(BaseSchema):
         else:
             self.schema = schema
             self.error = error
+        self.underlaying_schema = self.compute_underlaying_schema()
 
-    @memoized_property
-    def underlaying_schema(self):
+    def compute_underlaying_schema(self):
         if isinstance(self.schema, list):
             return List(self.schema[0])
         elif isinstance(self.schema, dict):
@@ -85,7 +80,7 @@ class Schema(BaseSchema):
 class Callable(BaseSchema):
     def __init__(self, validator, error):
         self.validator = validator
-        self.validator_name = nameof(validator, inner=True)
+        self.validator_name = validator.__name__
         self.error = error or "This value is incorrect"
 
     def validate(self, data):
@@ -101,7 +96,7 @@ class Callable(BaseSchema):
 class Type(BaseSchema):
     def __init__(self, type):
         self.type = type
-        self.type_name = nameof(self.type, inner=True)
+        self.type_name = self.type.__name__
 
     def validate(self, data):
         if isinstance(data, self.type):

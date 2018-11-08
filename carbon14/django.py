@@ -4,8 +4,6 @@ from uuid import UUID
 from functools import partial
 from typing import Generator
 
-from xoutil.objects import get_first_of
-
 from django import forms
 from django.db.models import QuerySet, Prefetch, Model
 from django.db.transaction import atomic
@@ -19,6 +17,7 @@ from django.views.decorators.csrf import csrf_exempt
 
 from .graphql import parse
 from .errors import Carbon14Error
+from .utils import get_first_of
 from . import neonode
 from . import schema
 
