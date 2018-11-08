@@ -71,16 +71,14 @@ class TestQueries(TestCase):
                     if title_contains in book.title
                 ]
 
-            author = Field('authors')
-
-            def resolve_author(self, book, **kwargs):
+            @Field('authors')
+            def author(self, book, **kwargs):
                 for author in AUTHORS:
                     if author.id == book.author_id:
                         return author
 
-            change_title = Field('books')
-
-            def resolve_change_title(self, instance, title: str):
+            @Field('books')
+            def change_title(self, instance, title: str):
                 instance.title = title
                 return instance
 

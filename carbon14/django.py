@@ -127,10 +127,9 @@ class Node(neonode.Node):
 
 class Field(neonode.Field):
     def resolve(self, node: Node, instance, kwargs):
-        resolver = getattr(node, f'resolve_{self.name}', None)
-        if resolver:
-            kwargs = self.validate(resolver, kwargs)
-            value = partial(resolver, instance)
+        if self.resolver:
+            kwargs = self.validate(self.resolver, kwargs)
+            value = partial(self.resolver, node, instance)
         else:
             value = get_first_of(instance, self.name)
 
@@ -144,11 +143,6 @@ class Field(neonode.Field):
             value = str(value)
 
         return value
-
-    def validate(self, resolver, kwargs):
-        s = schema.Schema(resolver.__annotations__)
-        kwargs = dict(kwargs, **s.validate(kwargs))
-        return kwargs
 
 
 class FileField(neonode.Field):

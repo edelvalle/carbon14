@@ -128,13 +128,16 @@ class Field:
         if isinstance(prefetch, str):
             prefetch = (prefetch,)
         self.prefetch = prefetch
+        self.resolver = None
+
+    def __call__(self, resolver):
+        self.resolver = resolver
+        return self
 
     def resolve(self, node: Node, instance, kwargs):
-        resolver = getattr(node, f'resolve_{self.name}', None)
-        if resolver:
-            schema = Schema(resolver.__annotations__)
-            kwargs = dict(kwargs, **schema.validate(kwargs))
-            value = partial(resolver, instance)
+        if self.resolver:
+            kwargs = self.validate(self.resolver, kwargs)
+            value = partial(self.resolver, node, instance)
         else:
             value = get_first_of(instance, self.name)
 
@@ -142,6 +145,11 @@ class Field:
             value = value(**kwargs)
 
         return value
+
+    def validate(self, resolver, kwargs):
+        s = Schema(resolver.__annotations__)
+        kwargs = dict(kwargs, **s.validate(kwargs))
+        return kwargs
 
 
 class Mutations(Node):
