@@ -92,6 +92,8 @@ class Node(type):
 class Collection(metaclass=Node):
 
     _source = ()
+    _permitted_fields = None
+    _allowed_fields_list = []
 
     id = Field()
 
@@ -135,10 +137,11 @@ class Collection(metaclass=Node):
 
     def field_is_allowed_and_accessible_according_to_policy(self, child):
         if child in self._fields:
-            if not self.field_based_access_policy:
+            if not self._permitted_fields:
                 return True
-            for group, allowed_fields in self.field_based_access_policy.items():
-                return child in allowed_fields
+            # FIX : This list includes a list of values instead of
+            # values directly. Check get_allowed_field_list method in django.py
+            return child in self._allowed_fields_list[0]
         return False
 
 

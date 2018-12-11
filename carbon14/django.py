@@ -83,7 +83,16 @@ class ModelCollection(Collection):
         if limit:
             instances = instances[:limit]
 
+        if self._permitted_fields:
+            self.get_allowed_field_list(ctx.user)
+
         return instances
+
+    def get_allowed_field_list(self, user):
+        for group in user.group_names:
+            for item in self._permitted_fields:
+                if group in item.keys():
+                    self._allowed_fields_list.extend(list(item.values()))
 
 
 class GraphQLView(APIView):
