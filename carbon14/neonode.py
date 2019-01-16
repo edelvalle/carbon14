@@ -34,14 +34,13 @@ class Node:
         super().__init_subclass__(**kwargs)
         # Collect the registered fields
         public_fields = [f for f in dir(cls) if not f.startswith('_')]
-        cls._fields_names = tuple(
-            field_name
+        cls._fields = {
+            field_name: getattr(cls, field_name)
             for field_name in public_fields
             if isinstance(getattr(cls, field_name), Field)
-        )
+        }
         # Tell the fields their names
-        for field_name in cls._fields_names:
-            field = getattr(cls, field_name)
+        for field_name, field in cls._fields.items():
             field.name = field_name
 
         # Collect mutations
@@ -70,7 +69,7 @@ class Node:
         fields_to_solve = {
             f: v
             for f, v in fields.items()
-            if f in self._fields_names
+            if f in self._fields
         }
         missing_fields = set(fields) - set(fields_to_solve)
         if missing_fields:
@@ -107,10 +106,10 @@ class Node:
         return value
 
     def resolve(self, item, field_name, kwargs):
-        return getattr(self, field_name).resolve(self, item, kwargs)
+        return self._fields[field_name].resolve(self, item, kwargs)
 
     def get_node_for(self, field_name):
-        field = getattr(self, field_name)
+        field = self._fields[field_name]
         OtherNode = self.nodes.get(field.type)
         if OtherNode:
             return OtherNode(self.ctx, self.nodes)
@@ -157,7 +156,7 @@ class Mutations(Node):
 
     def __init__(self, ctx, nodes):
         super().__init__(ctx, nodes)
-        self._fields_names = self.nodes.keys()
+        self._fields = self.nodes
 
     def query(self, kwargs, fields, source=None):
         results = {}

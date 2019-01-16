@@ -47,7 +47,7 @@ class Node(neonode.Node):
         for field_name, data in fields.items():
 
             # Explicit prefetch
-            fields_to_prefetch = getattr(self, field_name).prefetch
+            fields_to_prefetch = self._fields[field_name].prefetch
 
             for f in fields_to_prefetch or ():
                 source = source.prefetch_related(prefix + f)
