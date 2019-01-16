@@ -172,7 +172,7 @@ class CarbonJSONEncoder(DjangoJSONEncoder):
         if isinstance(o, Model):
             return o.pk
 
-        if isinstance(o, Generator):
+        if isinstance(o, (Generator, set)):
             return list(o)
 
         try:
