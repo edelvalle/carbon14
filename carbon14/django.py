@@ -55,20 +55,20 @@ class Node(neonode.Node):
             # Related pre-fetch
             node = self.get_node_for(field_name)
             if node and fields_to_prefetch is None:
-                    source = source.prefetch_related(
-                        Prefetch(
-                            prefix + field_name,
-                            queryset=node.filter(
-                                node.Meta.source,
-                                **data['kwargs']
-                            )
+                source = source.prefetch_related(
+                    Prefetch(
+                        prefix + field_name,
+                        queryset=node.filter(
+                            node.Meta.source,
+                            **data['kwargs']
                         )
                     )
-                    source = node.query_optimization(
-                        source,
-                        data['fields'],
-                        prefix=field_name + '__',
-                    )
+                )
+                source = node.query_optimization(
+                    source,
+                    data['fields'],
+                    prefix=field_name + '__',
+                )
 
         return source
 
