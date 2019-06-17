@@ -15,6 +15,7 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.views.decorators.csrf import csrf_exempt
 
 
+
 from .graphql import parse
 from .errors import Carbon14Error
 from .utils import get_first_of
@@ -174,6 +175,9 @@ class CarbonJSONEncoder(DjangoJSONEncoder):
 
         if isinstance(o, (Generator, set)):
             return list(o)
+
+        if hasattr(o, 'geojson'):
+            return json.loads(o.geojson)
 
         try:
             from numpy import ndarray
