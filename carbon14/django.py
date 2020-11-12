@@ -14,13 +14,10 @@ from django.core.exceptions import ValidationError
 from django.core.serializers.json import DjangoJSONEncoder
 from django.views.decorators.csrf import csrf_exempt
 
-
-
 from .graphql import parse
 from .errors import Carbon14Error
 from .utils import get_first_of
 from . import neonode
-from . import schema
 
 
 class Node(neonode.Node):
@@ -68,7 +65,7 @@ class Node(neonode.Node):
                 source = node.query_optimization(
                     source,
                     data['fields'],
-                    prefix=field_name + '__',
+                    prefix=prefix + field_name + '__',
                 )
 
         return source
@@ -85,81 +82,26 @@ class Node(neonode.Node):
     def is_collection(self, value):
         return isinstance(value, QuerySet) or super().is_collection(value)
 
-    def save_related_field(self, instance, name, items):
-        ids = filter(None, [item.get('id') for item in items])
-        getattr(instance, name).exclude(id__in=ids).delete()
-        return self.collect_errors(
-            self.set_related(instance, name),
-            items,
-            name
-        )
-
-    def collect_errors(self, action, items, errors_name):
-        results = []
-        errors = []
-        for item in items:
-            try:
-                results.append(action(item))
-            except ValidationError as e:
-                errors.append(dict(e))
-            else:
-                errors.append(None)
-
-        if any(errors):
-            raise schema.ValidationError({errors_name: errors})
-        else:
-            return results
-
-    def set_related(self, instance, name):
-        related_field = getattr(instance, name)
-
-        def corrutine(item):
-            id = item.pop('id')
-            new_item, created = related_field.update_or_create(
-                id=id,
-                defaults=item,
-            )
-            new_item.full_clean()
-            return new_item
-
-        return corrutine
-
 
 class Field(neonode.Field):
     def resolve(self, node: Node, instance, kwargs):
-        if self.resolver:
-            kwargs = self.validate(self.resolver, kwargs)
-            value = partial(self.resolver, node, instance)
-        else:
-            value = get_first_of(instance, self.name)
+        value = super().resolve(node, instance, kwargs)
 
         all_values = getattr(value, 'all', None)
         if all_values:
             value = all_values()
-        elif callable(value):
-            value = value(**kwargs)
-
-        if isinstance(value, UUID):
-            value = str(value)
 
         return value
 
 
 class FileField(neonode.Field):
-    def __init__(self, a_type=str, *args, **kwargs):
-        super().__init__(a_type, *args, **kwargs)
-
-    def resolve(self, *args, **kwargs):
-        value = super().resolve(*args, **kwargs)
-        if value:
-            return value.url
+    def resolver(self, node, instance, **kwargs):
+        file = super().resolver(node, instance, **kwargs)
+        return file and file.url
 
 
 class StringField(neonode.Field):
-    def __init__(self, a_type=str, *args, **kwargs):
-        super().__init__(a_type, *args, **kwargs)
-
-    def resolve(self, node, instance, *args, **kwargs):
+    def resolver(self, node, instance, **kwargs):
         return str(instance)
 
 
@@ -253,9 +195,6 @@ class GraphQLView(View):
             status = 400
         except ValidationError as e:
             data = dict(e)
-            status = 400
-        except schema.ValidationError as e:
-            data = e.errors
             status = 400
         else:
             status = 200

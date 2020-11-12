@@ -4,9 +4,9 @@ from pprint import pprint
 from unittest import TestCase
 
 from carbon14 import graphql
-from carbon14.neonode import RootNode, Node, Field, mutation
+from carbon14.neonode import RootNode, Node, Field
 from carbon14.errors import MissingNode, MissingFields
-from carbon14.schema import ValidationError
+# from carbon14.schema import ValidationError
 
 # Models
 
@@ -92,10 +92,6 @@ class TestQueries(TestCase):
             is_alive = Field(bool)
             books = Field('books')
             kill = Field('authors')
-
-            @mutation('authors')
-            def new(self, name, is_alive, books):
-                return Author('ID', name, is_alive, books)
 
         self.root_node = RootNode([Books, Authors])
 
@@ -235,43 +231,43 @@ class TestQueries(TestCase):
             ]
         }, data
 
-    def test_using_mutations(self):
-        data = self.query("""
-            authors { id kill { name is_alive } }
-        """)
-        pprint(data)
-        assert data == {
-            'authors': [
-                {
-                    'id': 32,
-                    'kill': {
-                        'name': 'Grace',
-                        'is_alive': False,
-                    }
-                },
-                {
-                    'id': 22,
-                    'kill': {
-                        'name': 'John',
-                        'is_alive': False,
-                    }
-                },
-            ]
-        }
+    # def test_using_mutations(self):
+    #     data = self.query("""
+    #         authors { id kill { name is_alive } }
+    #     """)
+    #     pprint(data)
+    #     assert data == {
+    #         'authors': [
+    #             {
+    #                 'id': 32,
+    #                 'kill': {
+    #                     'name': 'Grace',
+    #                     'is_alive': False,
+    #                 }
+    #             },
+    #             {
+    #                 'id': 22,
+    #                 'kill': {
+    #                     'name': 'John',
+    #                     'is_alive': False,
+    #                 }
+    #             },
+    #         ]
+    #     }
 
-        data = self.query("authors { is_alive name }")
-        assert data == {
-            'authors': [
-                {
-                    'is_alive': False,
-                    'name': 'Grace',
-                },
-                {
-                    'is_alive': False,
-                    'name': 'John',
-                },
-            ]
-        }
+    #     data = self.query("authors { is_alive name }")
+    #     assert data == {
+    #         'authors': [
+    #             {
+    #                 'is_alive': False,
+    #                 'name': 'Grace',
+    #             },
+    #             {
+    #                 'is_alive': False,
+    #                 'name': 'John',
+    #             },
+    #         ]
+    #     }
 
     def test_query_for_missing_collections(self):
         with raises(MissingNode):
@@ -289,30 +285,30 @@ class TestQueries(TestCase):
                 }
             """)
 
-    def test_mutation_creating_new_author(self):
-        data = self.query("""
-            mutations {
-                authors {
-                    new (name: "Ash", is_alive: false, books: null) {
-                        id
-                        name
-                        is_alive
-                    }
-                }
-            }
-        """)
-        pprint(data)
-        assert data == {
-            'mutations': {
-                'authors': {
-                    'new': {
-                        'id': 'ID',
-                        'name': 'Ash',
-                        'is_alive': False,
-                    }
-                }
-            }
-        }
+    # def test_mutation_creating_new_author(self):
+    #     data = self.query("""
+    #         mutations {
+    #             authors {
+    #                 new (name: "Ash", is_alive: false, books: null) {
+    #                     id
+    #                     name
+    #                     is_alive
+    #                 }
+    #             }
+    #         }
+    #     """)
+    #     pprint(data)
+    #     assert data == {
+    #         'mutations': {
+    #             'authors': {
+    #                 'new': {
+    #                     'id': 'ID',
+    #                     'name': 'Ash',
+    #                     'is_alive': False,
+    #                 }
+    #             }
+    #         }
+    #     }
 
     def test_schema_validation(self):
         data = self.query("""
@@ -328,17 +324,3 @@ class TestQueries(TestCase):
                 {'change_title': {'id': 4, 'title': 'AA'}}
             ]
         }
-
-    def test_schema_validation_with_bad_input(self):
-        try:
-            self.query("""
-                books {
-                    change_title (title: 1) { id title }
-                }
-            """)
-        except ValidationError as error:
-            assert error.errors == {
-                'title': ["1 is not a valid 'str'"]
-            }
-        else:
-            assert False

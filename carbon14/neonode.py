@@ -1,6 +1,5 @@
 from functools import partial
 
-from .schema import Schema
 from .errors import MissingNode, MissingFields
 from .utils import import_string, get_first_of
 
@@ -22,7 +21,7 @@ class RootNode:
         }
 
     def solve(self, field, **data):
-        node = Mutations if field == 'mutations' else self.nodes.get(field)
+        node = self.nodes.get(field)
         if not node or not node.Meta.exposed:
             raise MissingNode(field)
         return node(self.ctx, self.nodes).query(**data)
@@ -42,13 +41,6 @@ class Node:
         # Tell the fields their names
         for field_name, field in cls._fields.items():
             field.name = field_name
-
-        # Collect mutations
-        cls._mutations = {
-            field_name: getattr(cls, field_name).return_type
-            for field_name in public_fields
-            if getattr(getattr(cls, field_name), 'is_mutation', False)
-        }
 
     class Meta:
         exposed = True
@@ -110,7 +102,7 @@ class Node:
 
     def get_node_for(self, field_name):
         field = self._fields[field_name]
-        OtherNode = self.nodes.get(field.type)
+        OtherNode = self.nodes.get(field.node_type)
         if OtherNode:
             return OtherNode(self.ctx, self.nodes)
 
@@ -119,91 +111,21 @@ class Node:
 
 
 class Field:
-    def __init__(self, a_type: type, prefetch=None):
-        self.name = None
-        self.type = a_type
+    def __init__(self, node_type=None, prefetch=None):
+        self.node_type = node_type
         if isinstance(prefetch, str):
             prefetch = (prefetch,)
         self.prefetch = prefetch
-        self.resolver = None
 
     def __call__(self, resolver):
         self.resolver = resolver
         return self
 
     def resolve(self, node: Node, instance, kwargs):
-        if self.resolver:
-            kwargs = self.validate(self.resolver, kwargs)
-            value = partial(self.resolver, node, instance)
-        else:
-            value = get_first_of(instance, self.name)
-
+        value = partial(self.resolver, node, instance)
         if callable(value):
             value = value(**kwargs)
-
         return value
 
-    def validate(self, resolver, kwargs):
-        s = Schema(resolver.__annotations__)
-        kwargs = dict(kwargs, **s.validate(kwargs))
-        return kwargs
-
-
-class Mutations(Node):
-    class Meta(Node.Meta):
-        exposed = True
-        name = 'mutations'
-
-    def __init__(self, ctx, nodes):
-        super().__init__(ctx, nodes)
-        self._fields = self.nodes
-
-    def query(self, kwargs, fields, source=None):
-        results = {}
-        for node_name, node_mutations in fields.items():
-            node_results = {}
-            node = self.nodes.get(node_name)
-            if node:
-                node_mutations = node_mutations.get('fields', {})
-                node_results = dict(self.solve_mutations(node, node_mutations))
-            else:
-                raise MissingFields(self.Meta.name, node_name)
-            results[node_name] = node_results
-        return results
-
-    def solve_mutations(self, node, node_mutations):
-        node = node(self.ctx, self.nodes)
-        for mutation_name, data in node_mutations.items():
-            return_type = node._mutations.get(mutation_name)
-            if return_type:
-                kwargs = data.get('kwargs', {})
-                value = getattr(node, mutation_name)(**kwargs)
-                ReturnNode = self.nodes.get(return_type)
-                if ReturnNode:
-                    return_node = ReturnNode(self.ctx, self.nodes)
-                    fields = data.get('fields', {})
-                    value = self.serialize(value, return_node, fields)
-                yield mutation_name, value
-            else:
-                raise MissingFields(
-                    f'mutations.{node.Meta.name}', mutation_name
-                )
-
-    def serialize(self, value, node, fields):
-        if value is not None and node:
-            if node.is_collection(value):
-                value = node.query(source=value, kwargs={}, fields=fields)
-            else:
-                value = node.serialize(value, fields)
-            return value
-        return value
-
-
-def mutation(return_type):
-
-    def wrapper(f):
-        f.return_type = return_type
-        f.is_mutation = True
-        return f
-
-    return wrapper
+    def resolver(self, node, instance, **kwargs):
+        return get_first_of(instance, self.name)
