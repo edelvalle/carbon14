@@ -3,10 +3,10 @@ from __future__ import annotations
 from django import forms
 from django.db.models import QuerySet, Prefetch
 from django.http import HttpResponse
-from django.views.generic import View
 from django.template import Template, RequestContext
 from django.core.exceptions import ValidationError
-from django.views.decorators.csrf import csrf_exempt
+
+from rest_framework.views import APIView
 
 from .graphql import parse
 from .errors import Carbon14Error
@@ -91,20 +91,11 @@ class Node(neonode.Node):
 
 class GrapQLForm(forms.Form):
     query = forms.CharField(widget=forms.Textarea)
-    answer_html = forms.CharField(
-        widget=forms.HiddenInput,
-        initial='yes',
-        required=False,
-    )
 
 
-class GraphQLView(View):
+class GraphQLView(APIView):
 
     nodes = tuple()
-
-    @classmethod
-    def as_view(cls, *args, **kwargs):
-        return csrf_exempt(super().as_view(*args, **kwargs))
 
     @property
     def template(self):
@@ -138,10 +129,7 @@ class GraphQLView(View):
         ''')
 
     def get(self, request):
-        form = GrapQLForm(data=request.GET)
-        form.is_valid()
-        query = form.cleaned_data.get('query') or ''
-
+        query = request.GET.get('query') or ''
         root_node = neonode.RootNode(self.nodes, ctx=request)
         try:
             data = root_node.query(parse(query))
@@ -154,20 +142,18 @@ class GraphQLView(View):
         else:
             status = 200
 
-        is_graphql = not form.cleaned_data['answer_html']
-        if is_graphql:
-            data = json.dumps(data)
+        pure_json = 'text/html' not in request.META.get('HTTP_ACCEPT')
+        indent = None if pure_json else 2
+        data = json.dumps(data, indent=indent)
+        if pure_json:
             return HttpResponse(
                 data,
                 status=status,
                 content_type='application/json',
             )
         else:
-            data = json.dumps(data, indent=2)
-            return HttpResponse(
-                content=self.render(answer=data, form=form),
-                status=status,
-            )
+            form = GrapQLForm(data=request.GET)
+            return HttpResponse(self.render(form=form, answer=data))
 
     def render(self, **kwargs):
         return (
