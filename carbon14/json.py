@@ -1,6 +1,7 @@
 from typing import Generator
 import orjson
 
+from django.db.models.fields.files import FieldFile
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
 
@@ -15,6 +16,9 @@ def default(o):
 
     if isinstance(o, models.QuerySet):
         return list(o.values_list('pk', flat=True))
+
+    if isinstance(o, FieldFile):
+        return o.url
 
     if isinstance(o, (Generator, set)):
         return list(o)

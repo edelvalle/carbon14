@@ -1,3 +1,4 @@
+from __future__ import annotations
 from functools import partial
 
 from .errors import MissingNode, MissingFields
@@ -27,17 +28,41 @@ class RootNode:
         return node(self.ctx, self.nodes).query(**data)
 
 
+class Field:
+    def __init__(self, node_type=None, prefetch=None):
+        self.node_type = node_type
+        if isinstance(prefetch, str):
+            prefetch = (prefetch,)
+        self.prefetch = prefetch
+
+    def __call__(self, resolver):
+        self.resolver = resolver
+        return self
+
+    def resolve(self, node: Node, instance, kwargs):
+        value = partial(self.resolver, node, instance)
+        if callable(value):
+            value = value(**kwargs)
+        return value
+
+    def resolver(self, node, instance, **kwargs):
+        return get_first_of(instance, self.name)
+
+
 class Node:
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
+        # Collect meta registered fields
+        cls._fields = {f: cls.Meta.field_class() for f in cls.Meta.fields}
+
         # Collect the registered fields
         public_fields = [f for f in dir(cls) if not f.startswith('_')]
-        cls._fields = {
+        cls._fields.update({
             field_name: getattr(cls, field_name)
             for field_name in public_fields
             if isinstance(getattr(cls, field_name), Field)
-        }
+        })
         # Tell the fields their names
         for field_name, field in cls._fields.items():
             field.name = field_name
@@ -46,6 +71,8 @@ class Node:
         exposed = True
         name = ''
         source = ()
+        fields = ()
+        field_class = Field
 
     def __init__(self, ctx, nodes):
         self.ctx = ctx
@@ -108,24 +135,3 @@ class Node:
 
     def is_collection(self, value):
         return isinstance(value, (list, tuple, set))
-
-
-class Field:
-    def __init__(self, node_type=None, prefetch=None):
-        self.node_type = node_type
-        if isinstance(prefetch, str):
-            prefetch = (prefetch,)
-        self.prefetch = prefetch
-
-    def __call__(self, resolver):
-        self.resolver = resolver
-        return self
-
-    def resolve(self, node: Node, instance, kwargs):
-        value = partial(self.resolver, node, instance)
-        if callable(value):
-            value = value(**kwargs)
-        return value
-
-    def resolver(self, node, instance, **kwargs):
-        return get_first_of(instance, self.name)

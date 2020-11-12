@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from django import forms
 from django.db.models import QuerySet, Prefetch
 from django.http import HttpResponse
@@ -12,10 +14,22 @@ from . import neonode
 from . import json
 
 
+class Field(neonode.Field):
+    def resolve(self, node: Node, instance, kwargs):
+        value = super().resolve(node, instance, kwargs)
+
+        all_values = getattr(value, 'all', None)
+        if all_values:
+            value = all_values()
+
+        return value
+
+
 class Node(neonode.Node):
 
     class Meta(neonode.Node.Meta):
         is_public = False
+        field_class = Field
 
     def query(self, kwargs, fields, source=None):
         if source is None:
@@ -73,28 +87,6 @@ class Node(neonode.Node):
 
     def is_collection(self, value):
         return isinstance(value, QuerySet) or super().is_collection(value)
-
-
-class Field(neonode.Field):
-    def resolve(self, node: Node, instance, kwargs):
-        value = super().resolve(node, instance, kwargs)
-
-        all_values = getattr(value, 'all', None)
-        if all_values:
-            value = all_values()
-
-        return value
-
-
-class FileField(neonode.Field):
-    def resolver(self, node, instance, **kwargs):
-        file = super().resolver(node, instance, **kwargs)
-        return file and file.url
-
-
-class StringField(neonode.Field):
-    def resolver(self, node, instance, **kwargs):
-        return str(instance)
 
 
 class GrapQLForm(forms.Form):
