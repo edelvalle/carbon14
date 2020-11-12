@@ -28,6 +28,7 @@ setup(
     author='Eddy Ernesto del Valle Pino',
     author_email='eddy@edelvalle.me',
     packages=find_packages(exclude=("tests",)),
+    install_requires=['orjson>=3,<4'],
     tests_require=[
         'pytest',
         'pytest-cov',

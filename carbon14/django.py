@@ -1,23 +1,15 @@
-import json
-from uuid import UUID
-
-from functools import partial
-from typing import Generator
-
 from django import forms
-from django.db.models import QuerySet, Prefetch, Model
-from django.db.transaction import atomic
-from django.http import HttpResponse, JsonResponse
+from django.db.models import QuerySet, Prefetch
+from django.http import HttpResponse
 from django.views.generic import View
 from django.template import Template, RequestContext
 from django.core.exceptions import ValidationError
-from django.core.serializers.json import DjangoJSONEncoder
 from django.views.decorators.csrf import csrf_exempt
 
 from .graphql import parse
 from .errors import Carbon14Error
-from .utils import get_first_of
 from . import neonode
+from . import json
 
 
 class Node(neonode.Node):
@@ -107,34 +99,15 @@ class StringField(neonode.Field):
 
 class GrapQLForm(forms.Form):
     query = forms.CharField(widget=forms.Textarea)
-
-
-class CarbonJSONEncoder(DjangoJSONEncoder):
-
-    def default(self, o):
-        if isinstance(o, Model):
-            return o.pk
-
-        if isinstance(o, (Generator, set)):
-            return list(o)
-
-        if hasattr(o, 'geojson'):
-            return json.loads(o.geojson)
-
-        try:
-            from numpy import ndarray
-        except ImportError:
-            pass
-        else:
-            if isinstance(o, ndarray):
-                return list(o)
-
-        return super().default(o)
+    answer_html = forms.CharField(
+        widget=forms.HiddenInput,
+        initial='yes',
+        required=False,
+    )
 
 
 class GraphQLView(View):
 
-    encoder_class = CarbonJSONEncoder
     nodes = tuple()
 
     @classmethod
@@ -160,9 +133,8 @@ class GraphQLView(View):
             </head>
             <body>
 
-              <form method="post">
+              <form>
                 {{ form }}
-                {% csrf_token %}
                 <input type="submit" value="Query">
               </form>
 
@@ -174,22 +146,13 @@ class GraphQLView(View):
         ''')
 
     def get(self, request):
-        return HttpResponse(content=self.render(form=GrapQLForm()))
-
-    def post(self, request):
-        is_graphql = request.META.get('CONTENT_TYPE') == 'application/graphql'
-
-        if is_graphql:
-            query = request.body.decode()
-        else:
-            form = GrapQLForm(data=request.POST)
-            form.is_valid()
-            query = form.cleaned_data['query']
+        form = GrapQLForm(data=request.GET)
+        form.is_valid()
+        query = form.cleaned_data.get('query') or ''
 
         root_node = neonode.RootNode(self.nodes, ctx=request)
         try:
-            with atomic():
-                data = root_node.query(parse(query))
+            data = root_node.query(parse(query))
         except Carbon14Error as e:
             data = {'details': str(e)}
             status = 400
@@ -199,18 +162,16 @@ class GraphQLView(View):
         else:
             status = 200
 
+        is_graphql = not form.cleaned_data['answer_html']
         if is_graphql:
-            return JsonResponse(
+            data = json.dumps(data)
+            return HttpResponse(
                 data,
                 status=status,
-                encoder=self.encoder_class
+                content_type='application/json',
             )
         else:
-            data = json.dumps(
-                data,
-                cls=self.encoder_class,
-                indent=2
-            )
+            data = json.dumps(data, indent=2)
             return HttpResponse(
                 content=self.render(answer=data, form=form),
                 status=status,
