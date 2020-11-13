@@ -31,14 +31,22 @@ class Field(neonode.Field):
 class A(Field):
     def __init__(self, node_type=None, select=None):
         super().__init__(node_type)
-        select = select or node_type
         if isinstance(select, str):
             select = (select,)
         self.select = select
 
     def optimize(self, source, prefix, data, node=None):
-        for select in self.select:
-            source = source.select_related(prefix + self.name)
+        for select in self.select or (self.name,):
+            if prefix:
+                source = source.prefetch_related(prefix + select)
+                if node:
+                    source = node.query_optimization(
+                        source,
+                        data['fields'],
+                        prefix=prefix + select + '__',
+                    )
+            else:
+                source = source.select_related(select)
         return source
 
 
