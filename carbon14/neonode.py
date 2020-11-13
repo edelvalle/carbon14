@@ -29,11 +29,8 @@ class RootNode:
 
 
 class Field:
-    def __init__(self, node_type=None, prefetch=None):
+    def __init__(self, node_type=None):
         self.node_type = node_type
-        if isinstance(prefetch, str):
-            prefetch = (prefetch,)
-        self.prefetch = prefetch
 
     def __call__(self, resolver):
         self.resolver = resolver

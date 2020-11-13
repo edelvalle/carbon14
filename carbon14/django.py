@@ -24,6 +24,52 @@ class Field(neonode.Field):
 
         return value
 
+    def optimize(self, source, *args, **kwargs):
+        return source
+
+
+class A(Field):
+    def __init__(self, node_type=None, select=None):
+        super().__init__(node_type)
+        select = select or node_type
+        if isinstance(select, str):
+            select = (select,)
+        self.select = select
+
+    def optimize(self, source, prefix, data, node=None):
+        for select in self.select:
+            source = source.select_related(prefix + self.name)
+        return source
+
+
+class Many(Field):
+    def __init__(self, node_type=None, prefetch=None):
+        super().__init__(node_type)
+        if isinstance(prefetch, str):
+            prefetch = (prefetch,)
+        self.prefetch = prefetch
+
+    def optimize(self, source, prefix, data, node=None):
+        if self.prefetch:
+            for pretech in self.prefetch:
+                source = source.prefetch_related(prefix + self.name)
+        elif node:
+            source = source.prefetch_related(
+                Prefetch(
+                    prefix + self.name,
+                    queryset=node.filter(
+                        node.Meta.source,
+                        **data['kwargs']
+                    )
+                )
+            )
+            source = node.query_optimization(
+                source,
+                data['fields'],
+                prefix=prefix + self.name + '__',
+            )
+        return source
+
 
 class Node(neonode.Node):
 
@@ -49,31 +95,12 @@ class Node(neonode.Node):
     def query_optimization(self, source: QuerySet, fields, prefix=''):
         self.check_if_requesting_missing_fields(fields)
         for field_name, data in fields.items():
-
-            # Explicit prefetch
-            fields_to_prefetch = self._fields[field_name].prefetch
-
-            for f in fields_to_prefetch or ():
-                source = source.prefetch_related(prefix + f)
-
-            # Related pre-fetch
-            node = self.get_node_for(field_name)
-            if node and fields_to_prefetch is None:
-                source = source.prefetch_related(
-                    Prefetch(
-                        prefix + field_name,
-                        queryset=node.filter(
-                            node.Meta.source,
-                            **data['kwargs']
-                        )
-                    )
-                )
-                source = node.query_optimization(
-                    source,
-                    data['fields'],
-                    prefix=prefix + field_name + '__',
-                )
-
+            source = self._fields[field_name].optimize(
+                source,
+                prefix,
+                data,
+                node=self.get_node_for(field_name),
+            )
         return source
 
     def filter(self, _source: QuerySet, ids=None, **kwargs) -> QuerySet:
