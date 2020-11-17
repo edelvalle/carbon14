@@ -18,7 +18,7 @@ def default(o):
         return list(o.values_list('pk', flat=True))
 
     if isinstance(o, FieldFile):
-        return o.url
+        return o.url if o else None
 
     if isinstance(o, (Generator, set)):
         return list(o)
